@@ -1,0 +1,6 @@
+{
+  "name": "FarmaCromia",
+  "description": "Sistema di consiglio e gestione giacenze a semaforo cromatico per farmacie. Semplifica il cross-selling e gli obiettivi del banco senza pressione numerica per i collaboratori.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

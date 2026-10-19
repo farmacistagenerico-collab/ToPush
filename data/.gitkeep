@@ -1,0 +1,2 @@
+# This directory holds persistent runtime JSON storage for the pharmacy lists.
+# Runtime data files are ignored by git so private pharmacy inventories remain confidential.
