@@ -32,6 +32,7 @@ Nella farmacia moderna, il banco vendita si evolve sempre più da semplice dispe
   - Rinomina le liste in 1 secondo direttamente con la matita inline.
   - Imposta la cadenza: **Settimanale** (7 gg), **Bisettimanale** (14 gg), **Mensile** (30 gg) o **Stagionale**.
   - Selettore rapido: un click attiva la lista per tutti i terminali della farmacia.
+- ️ **Sottocategorie / Aree di Consiglio**: ogni lista ha le proprie aree (es. `Tosse & Gola`, `Difese Immunitarie`). Al banco compaiono come pulsanti-filtro E come titoli di gruppo; il titolare le crea, rinomina ed elimina in un tocco e assegna i prodotti con una tendina (o via CSV).
 - 📲 **Sincronizzazione Real-Time (Mobile & Desktop)**: Architettura con **Server-Sent Events (SSE)**. Se un farmacista registra un consiglio da smartphone in tasca al camice, tutti i computer del banco si aggiornano in tempo reale.
 - 📥 **Importatore Massivo CSV**: Incolla direttamente righe da Excel o gestionali di farmacia (Farmadati, Wingesfar, CSFarma) con anteprima automatica.
 - 🛡️ **Pannello Titolare Riservato**: Solo chi gestisce la farmacia può visualizzare le quantità interne, le scadenze e forzare i colori con un clic.
@@ -89,29 +90,33 @@ funziona sia agganciata al backend Express, sia — quando il backend non c'è �
 su `localStorage` con sincronizzazione fra le schede del browser.
 Il rilevamento è automatico (`src/services/api.ts`).
 
-### Setup una tantum
+### Come è configurato questo repository
 
-1. **Imposta la source su Actions** — è il passaggio che quasi sempre manca:
-   `Settings` ➔ `Pages` ➔ *Build and deployment* ➔ **Source: GitHub Actions**.
+- **Settings → Pages → Source: `Deploy from a branch`**, branch `main`, cartella `/ (root)`.
+- Alla root del repo vive il sito **già compilato in versione multi-file**:
+  `index.html` + cartella `assets/` (+ `favicon.svg`, `.nojekyll`).
+  È il contenuto che Pages pubblica così com'è.
+- L'entry **sorgente** per lo sviluppo è `index.src.html` (non `index.html`):
+  `npm run dev` lo serve automaticamente alla root grazie a un middleware Vite.
 
-   > Finché resta su *"Deploy from a branch"*, GitHub serve i **file sorgente**:
-   > arriva al browser un `index.html` con `<script src="/src/main.tsx">`, che
-   > punta a un file TypeScript inesistente al percorso giusto. Risultato:
-   > **pagina bianca**.
+### Pubblicare una modifica
 
-2. Verifica che il nome del repository corrisponda al percorso del sito:
-   il repo `ToPush` è servito su `https://<utente>.github.io/ToPush/`.
+```bash
+npm ci
+npm run build:pages     # compila in modalità statica dentro dist/
+cp -r dist/. .          # porta index.html + assets/ alla root del repo
+git add -A && git commit -m "publish: aggiornamento sito"
+git push                # Pages ripubblica da solo in ~1 minuto
+```
 
-Da qui in poi ogni `git push` su `main` triggera `.github/workflows/deploy.yml`,
-che installa, type-checka, compila con `--mode pages` e pubblica `dist/`.
-
-### Come mai funziona a qualsiasi sottopercorso
-
-`vite.config.ts` usa `base: './'`: gli asset vengono referenziati con URL
-**relativi** (`./assets/index-xxx.js`) invece che assoluti (`/assets/...`).
-Con path assoluti il browser li cercherebbe su `https://<utente>.github.io/assets/...`
-— fuori dal sottopercorso del progetto — ottenendo 404 e di nuovo pagina bianca.
-Gli URL relativi continuano a funzionare anche se rinomini il repository.
+> **Nota sul formato della build:** usare la build **multi-file** (html piccolo +
+> `assets/`). Il builder classico di Pages si è dimostrato inaffidabile con un
+> singolo `index.html` da oltre 1 MB (`npm run build:single`): le build andavano
+> in errore. La multi-file, oltre a passare, permette anche la cache degli asset.
+>
+> Le **GitHub Actions** sarebbero la via ideale, ma sugli account GitHub appena
+> creati i runner restano in coda indefinitamente: per questo il repo usa la
+> pubblicazione da branch, che non dipende dai runner.
 
 ### ⚠️ Limiti della modalità statica
 
@@ -129,7 +134,8 @@ dati con gli altri terminali.
 
 > Serve la sincronizzazione fra tutti i banchi della farmacia? Allora va usato il
 > backend Express su un host Node, oppure un servizio dati gratuito con realtime
-> (es. Supabase free tier). GitHub Pages da solo non può farlo.
+> (es. Supabase free tier). La UI non cambia in nessuno dei due casi: importa
+> solo da `src/services/api.ts`.
 
 ---
 
