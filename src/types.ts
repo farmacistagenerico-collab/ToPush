@@ -3,6 +3,15 @@ export type TrafficLightColor = 'red' | 'orange' | 'yellow' | 'green';
 /** Cadenza di una lista/campagna. Allineato con `server.ts`. */
 export type PeriodType = 'weekly' | 'biweekly' | 'monthly' | 'seasonal';
 
+/**
+ * Sottocategoria di una lista (es. «Tosse & Gola», «Difese Immunitarie»).
+ * Vive DENTRO la lista che la definisce: ogni lista ha le proprie.
+ */
+export interface Subcategory {
+  id: string;
+  name: string;
+}
+
 export interface ProductItem {
   id: string;
   name: string;
@@ -19,6 +28,8 @@ export interface ProductItem {
   priorityReason: string;
   notesForStaff: string;
   lastUpdated: string;
+  /** Sottocategoria della lista a cui il prodotto appartiene (null = nessuna). */
+  subcategoryId?: string | null;
 }
 
 export interface CampaignConfig {
@@ -50,6 +61,7 @@ export interface CustomList {
   endDate: string;
   isActive: boolean;
   products: ProductItem[];
+  subcategories: Subcategory[];
   createdAt: string;
   lastModified: string;
 }

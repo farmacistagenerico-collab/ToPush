@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { PharmacyStore, ProductItem, CampaignConfig, CustomList, HistoryLogEntry, TrafficLightColor, COLOR_METAS } from './types';
+import { PharmacyStore, ProductItem, CampaignConfig, CustomList, HistoryLogEntry, Subcategory, TrafficLightColor, COLOR_METAS } from './types';
 import {
   getBackendMode,
   type BackendMode,
@@ -23,6 +23,9 @@ import {
   activateCustomList,
   duplicateCustomList,
   deleteCustomList,
+  createSubcategory,
+  updateSubcategory,
+  deleteSubcategory,
 } from './services/api';
 import { TopNav } from './components/TopNav';
 import { ListSelectorBar } from './components/ListSelectorBar';
@@ -203,12 +206,41 @@ export default function App() {
   };
 
   // Manager: Batch import
-  const handleBatchImport = async (items: Partial<ProductItem>[], replace: boolean) => {
+  const handleBatchImport = async (items: (Partial<ProductItem> & { subcategory?: string })[], replace: boolean) => {
     try {
       const count = await batchImportProducts(items, replace);
       showToast(`Importati ${count} prodotti nella dashboard dello staff!`);
     } catch (err: any) {
       alert(`Errore batch import: ${err.message}`);
+    }
+  };
+
+  // Manager: Sottocategorie della lista attiva
+  const handleCreateSubcategory = async (listId: string, name: string) => {
+    try {
+      const created = await createSubcategory(listId, name);
+      showToast(`Sottocategoria «${created.name}» aggiunta alla lista`);
+    } catch (err: any) {
+      alert(`Errore creazione sottocategoria: ${err.message}`);
+    }
+  };
+
+  const handleRenameSubcategory = async (listId: string, subId: string, name: string) => {
+    try {
+      await updateSubcategory(listId, subId, { name });
+      showToast('Sottocategoria rinominata');
+    } catch (err: any) {
+      alert(`Errore rinomina sottocategoria: ${err.message}`);
+    }
+  };
+
+  const handleDeleteSubcategory = async (listId: string, subId: string) => {
+    if (!confirm('Eliminare la sottocategoria? I prodotti al suo interno torneranno «senza sottocategoria».')) return;
+    try {
+      await deleteSubcategory(listId, subId);
+      showToast('Sottocategoria eliminata');
+    } catch (err: any) {
+      alert(`Errore eliminazione sottocategoria: ${err.message}`);
     }
   };
 
@@ -340,6 +372,7 @@ export default function App() {
         {activeView === 'counter' ? (
           <CounterStaffView
             products={store.products}
+            subcategories={activeList?.subcategories || []}
             config={store.config}
             onRecommend={handleRecommend}
             onOpenCrossSelling={() => setIsCrossSellingOpen(true)}
@@ -351,6 +384,10 @@ export default function App() {
             config={store.config}
             lists={store.lists}
             activeListId={store.activeListId}
+            subcategories={activeList?.subcategories || []}
+            onCreateSubcategory={handleCreateSubcategory}
+            onRenameSubcategory={handleRenameSubcategory}
+            onDeleteSubcategory={handleDeleteSubcategory}
             historyLog={store.historyLog}
             onAddProduct={handleAddProduct}
             onUpdateProduct={handleUpdateProduct}

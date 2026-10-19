@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { ProductItem, TrafficLightColor, COLOR_METAS, CampaignConfig } from '../types';
+import { ProductItem, Subcategory, TrafficLightColor, COLOR_METAS, CampaignConfig } from '../types';
 import { ProductCard } from './ProductCard';
 import { SimpleProductList } from './SimpleProductList';
 import { Search, Sparkles, Filter, RefreshCw, X, Shield, BookOpen, AlertTriangle, LayoutGrid, List } from 'lucide-react';
 
 interface CounterStaffViewProps {
   products: ProductItem[];
+  subcategories: Subcategory[];
   config: CampaignConfig;
   onRecommend: (productId: string) => Promise<void>;
   onOpenCrossSelling: () => void;
@@ -14,6 +15,7 @@ interface CounterStaffViewProps {
 
 export const CounterStaffView: React.FC<CounterStaffViewProps> = ({
   products,
+  subcategories,
   config,
   onRecommend,
   onOpenCrossSelling,
@@ -21,6 +23,7 @@ export const CounterStaffView: React.FC<CounterStaffViewProps> = ({
 }) => {
   const [selectedColor, setSelectedColor] = useState<TrafficLightColor | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedSub, setSelectedSub] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     return (localStorage.getItem('farmacromia_view_mode') as 'grid' | 'list') || 'list';
@@ -39,6 +42,22 @@ export const CounterStaffView: React.FC<CounterStaffViewProps> = ({
     });
     return Array.from(set);
   }, [products]);
+
+  // Sottocategorie con almeno un prodotto (le aree vuote non affollano il banco)
+  const visibleSubs = useMemo(() => {
+    return subcategories.filter((sub) => products.some((p) => p.subcategoryId === sub.id));
+  }, [subcategories, products]);
+
+  const hasUnassigned = useMemo(
+    () => products.some((p) => !p.subcategoryId),
+    [products]
+  );
+
+  // Se la lista cambia e la sottocategoria selezionata non esiste più, torna a «tutte»
+  const effectiveSub =
+    selectedSub === 'all' || selectedSub === 'none' || subcategories.some((s) => s.id === selectedSub)
+      ? selectedSub
+      : 'all';
 
   // Color distribution summary (for staff visual awareness)
   const colorCounts = useMemo(() => {
@@ -60,6 +79,12 @@ export const CounterStaffView: React.FC<CounterStaffViewProps> = ({
       // Category filter
       if (selectedCategory !== 'all' && item.category !== selectedCategory) return false;
 
+      // Subcategory filter
+      if (effectiveSub === 'none' && item.subcategoryId) return false;
+      if (effectiveSub !== 'all' && effectiveSub !== 'none' && item.subcategoryId !== effectiveSub) {
+        return false;
+      }
+
       // Search query (case-insensitive across name, adviceTrigger, crossSellSuggestions, category, brand)
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
@@ -74,7 +99,53 @@ export const CounterStaffView: React.FC<CounterStaffViewProps> = ({
 
       return true;
     });
-  }, [products, selectedColor, selectedCategory, searchQuery]);
+  }, [products, selectedColor, selectedCategory, effectiveSub, searchQuery]);
+
+  const renderProductBlock = (items: ProductItem[]) =>
+    viewMode === 'list' ? (
+      <SimpleProductList products={items} onRecommend={onRecommend} />
+    ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {items.map((product) => (
+          <ProductCard key={product.id} product={product} onRecommend={onRecommend} />
+        ))}
+      </div>
+    );
+
+  /** Con «Tutte le aree» i prodotti sono raggruppati sotto titoli di sottocategoria. */
+  const renderProducts = (items: ProductItem[], grouped: boolean) => {
+    if (!grouped) return renderProductBlock(items);
+
+    const groups: { key: string; title: string; items: ProductItem[] }[] = visibleSubs
+      .map((sub) => ({
+        key: sub.id,
+        title: sub.name,
+        items: items.filter((p) => p.subcategoryId === sub.id),
+      }))
+      .filter((g) => g.items.length > 0);
+
+    const unassigned = items.filter((p) => !p.subcategoryId);
+    if (unassigned.length > 0) {
+      groups.push({ key: 'none', title: 'Senza sottocategoria', items: unassigned });
+    }
+
+    return (
+      <div className="space-y-8">
+        {groups.map((group) => (
+          <section key={group.key} className="space-y-3">
+            <div className="flex items-center gap-2.5">
+              <span className="h-4 w-1 rounded-full bg-emerald-500" />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                {group.title}
+              </h2>
+              <span className="text-[11px] text-slate-400 font-mono">{group.items.length}</span>
+            </div>
+            {renderProductBlock(group.items)}
+          </section>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -221,6 +292,50 @@ export const CounterStaffView: React.FC<CounterStaffViewProps> = ({
         </div>
       </section>
 
+      {/* Subcategory filter chips (criterio primario di consiglio) */}
+      {visibleSubs.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 shrink-0 pr-1">
+            Aree di consiglio
+          </span>
+          <button
+            onClick={() => setSelectedSub('all')}
+            className={`px-3.5 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors border ${
+              effectiveSub === 'all'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-emerald-50 hover:border-emerald-200'
+            }`}
+          >
+            Tutte le aree
+          </button>
+          {visibleSubs.map((sub) => (
+            <button
+              key={sub.id}
+              onClick={() => setSelectedSub(sub.id)}
+              className={`px-3.5 py-2 text-xs font-bold rounded-full whitespace-nowrap transition-colors border ${
+                effectiveSub === sub.id
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-emerald-50 hover:border-emerald-200'
+              }`}
+            >
+              {sub.name}
+            </button>
+          ))}
+          {hasUnassigned && (
+            <button
+              onClick={() => setSelectedSub('none')}
+              className={`px-3.5 py-2 text-xs font-semibold rounded-full whitespace-nowrap transition-colors border border-dashed ${
+                effectiveSub === 'none'
+                  ? 'bg-slate-700 text-white border-slate-700'
+                  : 'bg-white border-slate-300 text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              Senza area
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* Fast Search Input */}
@@ -324,22 +439,7 @@ export const CounterStaffView: React.FC<CounterStaffViewProps> = ({
           </div>
         </div>
       ) : filteredProducts.length > 0 ? (
-        viewMode === 'list' ? (
-          <SimpleProductList
-            products={filteredProducts}
-            onRecommend={onRecommend}
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onRecommend={onRecommend}
-              />
-            ))}
-          </div>
-        )
+        renderProducts(filteredProducts, effectiveSub === 'all' && visibleSubs.length > 0)
       ) : (
         <div className="bg-white rounded-xl border border-dashed border-slate-300 p-12 text-center">
           <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center mb-3">
@@ -355,6 +455,7 @@ export const CounterStaffView: React.FC<CounterStaffViewProps> = ({
             onClick={() => {
               setSelectedColor('all');
               setSelectedCategory('all');
+              setSelectedSub('all');
               setSearchQuery('');
             }}
             className="mt-4 px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors"

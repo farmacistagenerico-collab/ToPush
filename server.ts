@@ -8,6 +8,7 @@ import {
   buildInitialLists,
   buildInitialStore,
   computeAutoColor,
+  hydrateDemoSubcategories,
 } from './src/data/seed';
 
 export type TrafficLightColor = 'red' | 'orange' | 'yellow' | 'green';
@@ -28,6 +29,12 @@ export interface ProductItem {
   priorityReason: string;
   notesForStaff: string;
   lastUpdated: string;
+  subcategoryId?: string | null;
+}
+
+export interface Subcategory {
+  id: string;
+  name: string;
 }
 
 export interface CampaignConfig {
@@ -49,6 +56,7 @@ export interface CustomList {
   endDate: string;
   isActive: boolean;
   products: ProductItem[];
+  subcategories: Subcategory[];
   createdAt: string;
   lastModified: string;
 }
@@ -99,6 +107,7 @@ function ensureDataFile(): PharmacyStore {
         endDate: parsed.config?.endDate || '2027-02-28',
         isActive: true,
         products: parsed.products || buildDefaultAutunnoProducts(),
+        subcategories: [],
         createdAt: new Date().toISOString(),
         lastModified: new Date().toISOString(),
       };
@@ -106,6 +115,15 @@ function ensureDataFile(): PharmacyStore {
       parsed.activeListId = activeList.id;
       parsed.pharmacyName = parsed.config?.pharmacyName || 'Farmacia Centrale San Rocco';
     }
+
+    // Migrazione: liste salvate prima delle sottocategorie
+    parsed.lists.forEach((l: any) => {
+      if (!Array.isArray(l.subcategories)) l.subcategories = [];
+      (l.products || []).forEach((prod: any) => {
+        if (prod.subcategoryId === undefined) prod.subcategoryId = null;
+      });
+      hydrateDemoSubcategories(l);
+    });
 
     // Sync active list products to root products
     const active = parsed.lists.find((l: CustomList) => l.id === parsed.activeListId) || parsed.lists[0];
@@ -232,6 +250,7 @@ async function startServer() {
       endDate: endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       isActive: Boolean(makeActive),
       products: initialProducts,
+      subcategories: [],
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
     };
@@ -316,6 +335,7 @@ async function startServer() {
       endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       isActive: false,
       products: clonedProducts,
+      subcategories: JSON.parse(JSON.stringify(sourceList.subcategories || [])),
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
     };
@@ -511,10 +531,24 @@ async function startServer() {
       return res.status(400).json({ error: 'Nessun prodotto valido fornito per l importazione' });
     }
 
-    const formattedItems: ProductItem[] = items.map((item, idx) => {
+    const formattedItems: ProductItem[] = items.map((item: any, idx) => {
       const target = Number(item.targetQuantity) || 25;
       const current = Number(item.currentQuantity) || 0;
       const initialColor = (item.color as TrafficLightColor) || computeAutoColor(current, target);
+      const subName = typeof item.subcategory === 'string' ? item.subcategory.trim() : '';
+      let subcategoryId: string | null = item.subcategoryId ?? null;
+      if (subName) {
+        const existing = activeList.subcategories.find(
+          (sub) => sub.name.toLowerCase() === subName.toLowerCase()
+        );
+        if (existing) {
+          subcategoryId = existing.id;
+        } else {
+          const created: Subcategory = { id: `sub-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`, name: subName };
+          activeList.subcategories.push(created);
+          subcategoryId = created.id;
+        }
+      }
 
       return {
         id: `batch-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
@@ -536,6 +570,7 @@ async function startServer() {
         priorityReason: String(item.priorityReason || 'Importazione massiva di giacenze').trim(),
         notesForStaff: String(item.notesForStaff || '').trim(),
         lastUpdated: new Date().toISOString(),
+        subcategoryId,
       };
     });
 
@@ -555,6 +590,56 @@ async function startServer() {
       importedCount: formattedItems.length,
       totalCount: activeList.products.length,
     });
+  });
+
+  // 8a-bis. Sottocategorie di una lista (CRUD)
+  app.post('/api/lists/:id/subcategories', (req: Request, res: Response) => {
+    const list = store.lists.find((l) => l.id === req.params.id);
+    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
+
+    const name = String(req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Il nome della sottocategoria è obbligatorio' });
+    if (list.subcategories.some((sub) => sub.name.toLowerCase() === name.toLowerCase())) {
+      return res.status(400).json({ error: `Esiste già una sottocategoria «${name}» in questa lista` });
+    }
+
+    const created: Subcategory = { id: `sub-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`, name };
+    list.subcategories.push(created);
+    list.lastModified = new Date().toISOString();
+    saveStore(store);
+    broadcastUpdate();
+    return res.json({ success: true, data: created });
+  });
+
+  app.put('/api/lists/:id/subcategories/:sid', (req: Request, res: Response) => {
+    const list = store.lists.find((l) => l.id === req.params.id);
+    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
+    const sub = list.subcategories.find((s) => s.id === req.params.sid);
+    if (!sub) return res.status(404).json({ error: 'Sottocategoria non trovata' });
+
+    const name = String(req.body?.name || '').trim();
+    if (name) sub.name = name;
+    list.lastModified = new Date().toISOString();
+    saveStore(store);
+    broadcastUpdate();
+    return res.json({ success: true, data: sub });
+  });
+
+  app.delete('/api/lists/:id/subcategories/:sid', (req: Request, res: Response) => {
+    const list = store.lists.find((l) => l.id === req.params.id);
+    if (!list) return res.status(404).json({ error: 'Lista non trovata' });
+    const before = list.subcategories.length;
+    list.subcategories = list.subcategories.filter((s) => s.id !== req.params.sid);
+    if (list.subcategories.length === before) {
+      return res.status(404).json({ error: 'Sottocategoria non trovata' });
+    }
+    list.products.forEach((prod) => {
+      if (prod.subcategoryId === req.params.sid) prod.subcategoryId = null;
+    });
+    list.lastModified = new Date().toISOString();
+    saveStore(store);
+    broadcastUpdate();
+    return res.json({ success: true, message: 'Sottocategoria eliminata' });
   });
 
   // 8b. Update campaign / cycle configuration (pannello titolare)
@@ -616,6 +701,7 @@ async function startServer() {
           endDate: threeMonthsLater,
           isActive: true,
           products: [],
+          subcategories: [],
           createdAt: new Date().toISOString(),
           lastModified: new Date().toISOString(),
         },

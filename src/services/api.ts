@@ -18,7 +18,7 @@
  * I componenti React importano sempre e solo da qui: nessuna modifica alla UI
  * è necessaria per passare dall'una all'altra modalità.
  */
-import type { CampaignConfig, CustomList, PharmacyStore, ProductItem, TrafficLightColor } from '../types';
+import type { CampaignConfig, CustomList, PharmacyStore, ProductItem, Subcategory, TrafficLightColor } from '../types';
 import * as local from './localBackend';
 import * as remote from './remoteBackend';
 
@@ -152,13 +152,39 @@ export async function deleteProduct(productId: string): Promise<boolean> {
   return (await useLocal()) ? local.deleteProduct(productId) : remote.deleteProduct(productId);
 }
 
+export type BatchImportItem = Partial<ProductItem> & { subcategory?: string };
+
 export async function batchImportProducts(
-  items: Partial<ProductItem>[],
+  items: BatchImportItem[],
   replaceExisting: boolean = false
 ): Promise<number> {
   return (await useLocal())
     ? local.batchImportProducts(items, replaceExisting)
     : remote.batchImportProducts(items, replaceExisting);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sottocategorie (per lista)                                          */
+/* ------------------------------------------------------------------ */
+
+export async function createSubcategory(listId: string, name: string): Promise<Subcategory> {
+  return (await useLocal()) ? local.createSubcategory(listId, name) : remoteCreateSubcategory(listId, name);
+}
+
+export async function updateSubcategory(
+  listId: string,
+  subcategoryId: string,
+  data: Partial<Subcategory>
+): Promise<Subcategory> {
+  return (await useLocal())
+    ? local.updateSubcategory(listId, subcategoryId, data)
+    : remoteUpdateSubcategory(listId, subcategoryId, data);
+}
+
+export async function deleteSubcategory(listId: string, subcategoryId: string): Promise<boolean> {
+  return (await useLocal())
+    ? local.deleteSubcategory(listId, subcategoryId)
+    : remoteDeleteSubcategory(listId, subcategoryId);
 }
 
 /* ------------------------------------------------------------------ */
@@ -210,6 +236,46 @@ export function subscribeToRealtimeUpdates(
     cancelled = true;
     if (dispose) dispose();
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Client HTTP per le sottocategorie (modalità server)                  */
+/* ------------------------------------------------------------------ */
+
+async function remoteCreateSubcategory(listId: string, name: string): Promise<Subcategory> {
+  const res = await fetch(`/api/lists/${listId}/subcategories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Errore creazione sottocategoria: ${res.statusText}`);
+  }
+  return (await res.json()).data;
+}
+
+async function remoteUpdateSubcategory(
+  listId: string,
+  subcategoryId: string,
+  data: Partial<Subcategory>
+): Promise<Subcategory> {
+  const res = await fetch(`/api/lists/${listId}/subcategories/${subcategoryId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Errore aggiornamento sottocategoria: ${res.statusText}`);
+  return (await res.json()).data;
+}
+
+async function remoteDeleteSubcategory(listId: string, subcategoryId: string): Promise<boolean> {
+  const res = await fetch(`/api/lists/${listId}/subcategories/${subcategoryId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Errore eliminazione sottocategoria: ${res.statusText}`);
+  }
+  return true;
 }
 
 /* ------------------------------------------------------------------ */

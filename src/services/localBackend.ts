@@ -20,6 +20,7 @@ import type {
   CustomList,
   PharmacyStore,
   ProductItem,
+  Subcategory,
   TrafficLightColor,
 } from '../types';
 import {
@@ -27,6 +28,7 @@ import {
   buildDefaultAutunnoProducts,
   buildInitialStore,
   computeAutoColor,
+  hydrateDemoSubcategories,
 } from '../data/seed';
 
 const STORAGE_KEY = 'farmacromia.store.v1';
@@ -119,11 +121,23 @@ function syncActiveListProducts(store: PharmacyStore) {
   }
 }
 
+/** Le liste create prima dell'introduzione delle sottocategorie non hanno il campo. */
+function migrateSubcategories(store: PharmacyStore) {
+  store.lists.forEach((list) => {
+    if (!Array.isArray(list.subcategories)) list.subcategories = [];
+    list.products.forEach((prod) => {
+      if (prod.subcategoryId === undefined) prod.subcategoryId = null;
+    });
+    hydrateDemoSubcategories(list);
+  });
+}
+
 function loadStore(): PharmacyStore {
   let store = readRaw();
   if (!store) {
     store = buildInitialStore();
   }
+  migrateSubcategories(store);
   syncActiveListProducts(store);
   writeRaw(store);
   return store;
@@ -220,6 +234,7 @@ export async function createCustomList(data: {
     endDate: data.endDate || plusDaysIso(30),
     isActive: Boolean(data.makeActive),
     products: initialProducts,
+    subcategories: [],
     createdAt: new Date().toISOString(),
     lastModified: new Date().toISOString(),
   };
@@ -281,6 +296,7 @@ export async function duplicateCustomList(id: string): Promise<CustomList> {
     endDate: plusDaysIso(14),
     isActive: false,
     products: clonedProducts,
+    subcategories: clone(sourceList.subcategories || []),
     createdAt: new Date().toISOString(),
     lastModified: new Date().toISOString(),
   };
@@ -417,8 +433,22 @@ export async function deleteProduct(productId: string): Promise<boolean> {
   return true;
 }
 
+export type BatchImportItem = Partial<ProductItem> & { subcategory?: string };
+
+/** Trova la sottocategoria per nome (case-insensitive) o la crea nella lista. */
+function resolveSubcategoryByName(list: CustomList, name: string): string {
+  const clean = name.trim();
+  const existing = list.subcategories.find(
+    (sub) => sub.name.toLowerCase() === clean.toLowerCase()
+  );
+  if (existing) return existing.id;
+  const created: Subcategory = { id: uid('sub'), name: clean };
+  list.subcategories.push(created);
+  return created.id;
+}
+
 export async function batchImportProducts(
-  items: Partial<ProductItem>[],
+  items: BatchImportItem[],
   replaceExisting: boolean = false
 ): Promise<number> {
   const store = loadStore();
@@ -432,6 +462,9 @@ export async function batchImportProducts(
     const target = Number(item.targetQuantity) || 25;
     const current = Number(item.currentQuantity) || 0;
     const initialColor = (item.color as TrafficLightColor) || computeAutoColor(current, target);
+    const subcategoryId = item.subcategory
+      ? resolveSubcategoryByName(list, item.subcategory)
+      : (item.subcategoryId ?? null);
 
     return {
       id: `batch-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
@@ -453,6 +486,7 @@ export async function batchImportProducts(
       priorityReason: String(item.priorityReason || 'Importazione massiva di giacenze').trim(),
       notesForStaff: String(item.notesForStaff || '').trim(),
       lastUpdated: new Date().toISOString(),
+      subcategoryId,
     };
   });
 
@@ -461,6 +495,71 @@ export async function batchImportProducts(
 
   commit(store);
   return formattedItems.length;
+}
+
+/* ------------------------------------------------------------------ */
+/* Sottocategorie (per lista)                                          */
+/* ------------------------------------------------------------------ */
+
+function findList(store: PharmacyStore, listId: string): CustomList {
+  const list = store.lists.find((l) => l.id === listId);
+  if (!list) throw new Error('Lista non trovata');
+  return list;
+}
+
+export async function createSubcategory(listId: string, name: string): Promise<Subcategory> {
+  const clean = (name || '').trim();
+  if (!clean) throw new Error('Il nome della sottocategoria è obbligatorio');
+
+  const store = loadStore();
+  const list = findList(store, listId);
+
+  const duplicate = list.subcategories.find(
+    (sub) => sub.name.toLowerCase() === clean.toLowerCase()
+  );
+  if (duplicate) throw new Error(`Esiste già una sottocategoria «${duplicate.name}» in questa lista`);
+
+  const created: Subcategory = { id: uid('sub'), name: clean };
+  list.subcategories.push(created);
+  list.lastModified = new Date().toISOString();
+
+  commit(store);
+  return clone(created);
+}
+
+export async function updateSubcategory(
+  listId: string,
+  subcategoryId: string,
+  data: Partial<Subcategory>
+): Promise<Subcategory> {
+  const store = loadStore();
+  const list = findList(store, listId);
+  const sub = list.subcategories.find((s) => s.id === subcategoryId);
+  if (!sub) throw new Error('Sottocategoria non trovata');
+
+  if (data.name !== undefined && data.name.trim()) sub.name = data.name.trim();
+  list.lastModified = new Date().toISOString();
+
+  commit(store);
+  return clone(sub);
+}
+
+export async function deleteSubcategory(listId: string, subcategoryId: string): Promise<boolean> {
+  const store = loadStore();
+  const list = findList(store, listId);
+
+  const initialLen = list.subcategories.length;
+  list.subcategories = list.subcategories.filter((s) => s.id !== subcategoryId);
+  if (list.subcategories.length === initialLen) throw new Error('Sottocategoria non trovata');
+
+  // I prodotti orfani tornano «senza sottocategoria».
+  list.products.forEach((prod) => {
+    if (prod.subcategoryId === subcategoryId) prod.subcategoryId = null;
+  });
+  list.lastModified = new Date().toISOString();
+
+  commit(store);
+  return true;
 }
 
 export async function updateCampaign(data: Partial<CampaignConfig>): Promise<CampaignConfig> {
@@ -513,6 +612,7 @@ export async function resetBlankData(): Promise<boolean> {
         endDate: threeMonthsLater,
         isActive: true,
         products: [],
+        subcategories: [],
         createdAt: new Date().toISOString(),
         lastModified: new Date().toISOString(),
       },

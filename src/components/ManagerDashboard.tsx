@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ProductItem, CampaignConfig, CustomList, TrafficLightColor, COLOR_METAS, HistoryLogEntry } from '../types';
+import { ProductItem, CampaignConfig, CustomList, Subcategory, TrafficLightColor, COLOR_METAS, HistoryLogEntry } from '../types';
 import {
   Plus,
   Upload,
@@ -18,6 +18,7 @@ import {
   Copy,
   CheckCircle2,
   FolderPlus,
+  Tags,
 } from 'lucide-react';
 
 interface ManagerDashboardProps {
@@ -25,11 +26,15 @@ interface ManagerDashboardProps {
   config: CampaignConfig;
   lists: CustomList[];
   activeListId: string;
+  subcategories: Subcategory[];
   historyLog: HistoryLogEntry[];
   onAddProduct: (prod: Partial<ProductItem>) => Promise<void>;
   onUpdateProduct: (id: string, data: Partial<ProductItem>) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
-  onBatchImport: (items: Partial<ProductItem>[], replace: boolean) => Promise<void>;
+  onBatchImport: (items: (Partial<ProductItem> & { subcategory?: string })[], replace: boolean) => Promise<void>;
+  onCreateSubcategory: (listId: string, name: string) => Promise<void>;
+  onRenameSubcategory: (listId: string, subId: string, name: string) => Promise<void>;
+  onDeleteSubcategory: (listId: string, subId: string) => Promise<void>;
   onUpdateCampaign: (data: Partial<CampaignConfig>) => Promise<void>;
   onResetDemo: () => Promise<void>;
   onResetBlank: () => Promise<void>;
@@ -45,11 +50,15 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
   config,
   lists,
   activeListId,
+  subcategories,
   historyLog,
   onAddProduct,
   onUpdateProduct,
   onDeleteProduct,
   onBatchImport,
+  onCreateSubcategory,
+  onRenameSubcategory,
+  onDeleteSubcategory,
   onUpdateCampaign,
   onResetDemo,
   onResetBlank,
@@ -83,6 +92,9 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
   });
 
   // Batch Import Raw Text State
+  const [newSubName, setNewSubName] = useState('');
+  const [editingSubId, setEditingSubId] = useState<string | null>(null);
+  const [editingSubName, setEditingSubName] = useState('');
   const [batchText, setBatchText] = useState('');
   const [replaceExisting, setReplaceExisting] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -160,6 +172,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
       batchExpiry: prod.batchExpiry || '',
       priorityReason: prod.priorityReason,
       notesForStaff: prod.notesForStaff,
+      subcategoryId: prod.subcategoryId || null,
     });
     setShowAddModal(true);
   };
@@ -168,11 +181,11 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
     if (!batchText.trim()) return;
     try {
       const lines = batchText.trim().split('\n');
-      const items: Partial<ProductItem>[] = [];
+      const items: (Partial<ProductItem> & { subcategory?: string })[] = [];
 
       for (const line of lines) {
         if (!line.trim() || line.startsWith('#') || line.startsWith('Nome;')) continue;
-        // Format supported: Nome; Marchio; Categoria; Trigger; Target; Colore; Motivo
+        // Format supported: Nome; Marchio; Categoria; Trigger; Target; Colore; Motivo; Sottocategoria
         const parts = line.split(';').map((s) => s.trim());
         if (parts.length >= 1 && parts[0]) {
           const colorVal = (['red', 'orange', 'yellow', 'green'].includes(parts[5]?.toLowerCase())
@@ -191,6 +204,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
             color: colorVal,
             priorityReason: parts[6] || 'Giacenza da far ruotare',
             notesForStaff: '',
+            subcategory: parts[7] || undefined,
           });
         }
       }
@@ -213,13 +227,13 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
   };
 
   const handleLoadSampleCSV = () => {
-    const sample = `Nome; Marchio; Categoria; Trigger al Banco; Target; Colore; Motivo
-KuraGola Propoli Forte; FarmLab; Vie Respiratorie; Con sciroppi o mal di gola; 35; red; Scorta elevata magazzino
-DermoHydra Crema Mani 75ml; SkinCare Lab; Dermocosmesi; Mani screpolate o freddo; 40; red; Accordo commerciale 2+1
-Calcio D3 Plus Compresse; PharmaVita; Integratori & Vitamine; Con terapie per osteoporosi o over 60; 25; orange; Rotazione stagionale
+    const sample = `Nome; Marchio; Categoria; Trigger al Banco; Target; Colore; Motivo; Sottocategoria
+KuraGola Propoli Forte; FarmLab; Vie Respiratorie; Con sciroppi o mal di gola; 35; red; Scorta elevata magazzino; Tosse & Gola
+DermoHydra Crema Mani 75ml; SkinCare Lab; Dermocosmesi; Mani screpolate o freddo; 40; red; Accordo commerciale 2+1; Pelle & Freddo
+Calcio D3 Plus Compresse; PharmaVita; Integratori & Vitamine; Con terapie per osteoporosi o over 60; 25; orange; Rotazione stagionale; Energia & Sonno
 GastroProtect Gel Orale; MedSanitas; Fermenti & Digestione; Bruciore gastrico o FANS; 30; orange; Consiglio attivo
-Collirio Euphrasia Rinfrescante; OculoVerde; Oculare; Occhi arrossati o stanchezza; 20; yellow; Verso traguardo
-Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale; 50; green; Obiettivo raggiunto`;
+Collirio Euphrasia Rinfrescante; OculoVerde; Oculare; Occhi arrossati o stanchezza; 20; yellow; Verso traguardo; Occhi & Benessere
+Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale; 50; green; Obiettivo raggiunto; Difese Immunitarie`;
     setBatchText(sample);
   };
 
@@ -524,6 +538,106 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
       {/* TAB 1: PRODUCTS INVENTORY TABLE */}
       {activeTab === 'products' && (
         <section className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+          {/* Sottocategorie della lista attiva */}
+          <div className="p-4 border-b border-slate-200 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
+              <Tags className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Sottocategorie della lista attiva</span>
+              <span className="text-slate-400 font-normal">
+                (sono il criterio con cui il banco vede raggruppati i prodotti)
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {subcategories.length === 0 && (
+                <span className="text-[11px] text-slate-400">
+                  Nessuna sottocategoria: al banco i prodotti compariranno in un unico elenco.
+                </span>
+              )}
+              {subcategories.map((sub) => (
+                <span
+                  key={sub.id}
+                  className="flex items-center gap-1 pl-3 pr-1 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800"
+                >
+                  {editingSubId === sub.id ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={editingSubName}
+                        onChange={(e) => setEditingSubName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            onRenameSubcategory(activeListId, sub.id, editingSubName);
+                            setEditingSubId(null);
+                          }
+                          if (e.key === 'Escape') setEditingSubId(null);
+                        }}
+                        className="w-32 px-1 py-0.5 text-xs border border-emerald-300 rounded focus:outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          onRenameSubcategory(activeListId, sub.id, editingSubName);
+                          setEditingSubId(null);
+                        }}
+                        className="p-1 text-emerald-700 hover:bg-emerald-100 rounded-full"
+                        title="Conferma rinomina"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {sub.name}
+                      <span className="text-emerald-500 font-mono">
+                        {products.filter((pr) => pr.subcategoryId === sub.id).length}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setEditingSubId(sub.id);
+                          setEditingSubName(sub.name);
+                        }}
+                        className="p-1 text-emerald-700 hover:bg-emerald-100 rounded-full"
+                        title="Rinomina sottocategoria"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteSubcategory(activeListId, sub.id)}
+                        className="p-1 text-rose-500 hover:bg-rose-50 rounded-full"
+                        title="Elimina sottocategoria"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
+                </span>
+              ))}
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newSubName.trim()) return;
+                  onCreateSubcategory(activeListId, newSubName);
+                  setNewSubName('');
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  value={newSubName}
+                  onChange={(e) => setNewSubName(e.target.value)}
+                  placeholder="Nuova sottocategoria (es. Tosse)"
+                  className="px-3 py-1.5 text-xs border border-slate-200 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 w-52"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-full transition-colors"
+                >
+                  + Aggiungi
+                </button>
+              </form>
+            </div>
+          </div>
+
           <div className="p-4 bg-slate-50/60 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
             <div>
               <span className="font-semibold text-slate-800">
@@ -555,6 +669,7 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
                 <tr>
                   <th className="py-3 px-4">Semaforo Banco</th>
                   <th className="py-3 px-4">Prodotto / Reparto</th>
+                  <th className="py-3 px-4">Sottocategoria</th>
                   <th className="py-3 px-4">Gancio al Banco</th>
                   <th className="py-3 px-4 text-right">Target Riservato</th>
                   <th className="py-3 px-4 text-right">Consigliati</th>
@@ -592,6 +707,23 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
                         <div className="text-[11px] text-slate-500 mt-0.5">
                           {item.brand} · <span className="text-slate-600">{item.category}</span>
                         </div>
+                      </td>
+
+                      {/* Subcategory quick assign */}
+                      <td className="py-3 px-4">
+                        <select
+                          value={item.subcategoryId || ''}
+                          onChange={(e) => onUpdateProduct(item.id, { subcategoryId: e.target.value || null })}
+                          className="px-2 py-1.5 text-[11px] border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 max-w-[140px]"
+                          title="Assegna il prodotto a una sottocategoria"
+                        >
+                          <option value="">— nessuna —</option>
+                          {subcategories.map((sub) => (
+                            <option key={sub.id} value={sub.id}>
+                              {sub.name}
+                            </option>
+                          ))}
+                        </select>
                       </td>
 
                       {/* Advice Trigger */}
@@ -925,6 +1057,29 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
                     className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Sottocategoria (area di consiglio)
+                </label>
+                <select
+                  value={formData.subcategoryId || ''}
+                  onChange={(e) => setFormData({ ...formData, subcategoryId: e.target.value || null })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                >
+                  <option value="">— nessuna —</option>
+                  {subcategories.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name}
+                    </option>
+                  ))}
+                </select>
+                {subcategories.length === 0 && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Crea prima una sottocategoria qui sopra, nella scheda «Prodotti Lista Attiva».
+                  </p>
+                )}
               </div>
 
               <div>
