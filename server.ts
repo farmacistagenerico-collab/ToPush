@@ -2,6 +2,13 @@ import express, { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
+import {
+  buildDefaultAutunnoProducts,
+  buildDefaultAntibioticiProducts,
+  buildInitialLists,
+  buildInitialStore,
+  computeAutoColor,
+} from './src/data/seed';
 
 export type TrafficLightColor = 'red' | 'orange' | 'yellow' | 'green';
 
@@ -68,236 +75,6 @@ export interface PharmacyStore {
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const STORE_FILE = path.join(DATA_DIR, 'pharmacy_store.json');
 
-const DEFAULT_AUTUNNO_PRODUCTS: ProductItem[] = [
-  {
-    id: 'prod-001',
-    name: 'FlorBio Fermenti Vivi 12 Flaconcini',
-    brand: 'BioFarma',
-    category: 'Fermenti & Digestione',
-    sku: 'FLOR-12',
-    adviceTrigger: 'Ogni volta che viene prescritto o richiesto un ANTIBIOTICO, o per gonfiore e disbiosi',
-    crossSellSuggestions: ['Antibiotici orali', 'Antinfiammatori FANS', 'Disturbi da viaggio'],
-    sellingPoints: [
-      '5 miliardi di fermenti tindalizzati + Vitamine Gruppo B',
-      'Gusto gradevole arancia, si assume anche a stomaco vuoto',
-      'Resiste all acidità gastrica senza refrigerazione'
-    ],
-    color: 'red',
-    targetQuantity: 40,
-    currentQuantity: 6,
-    batchExpiry: '11/2026 (Scorte elevate)',
-    priorityReason: 'Giacenza elevata in arrivo dal distributore con accordo speciale',
-    notesForStaff: 'Priorità massima di reparto: consigliare sistematicamente con tutte le ricette antibiotiche.',
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: 'prod-002',
-    name: 'Immunotop Defense C + Zinco + Echinacea',
-    brand: 'PharmaNature',
-    category: 'Difese & Vitamine',
-    sku: 'IMMU-30',
-    adviceTrigger: 'Pazienti affaticati, primi freddi, richiesta di antinfiammatori o antipiretici',
-    crossSellSuggestions: ['Paracetamolo', 'Decongestionanti nasali', 'Sciroppi tosse'],
-    sellingPoints: [
-      'Tripla azione sinergica ad alto dosaggio (1000mg Vitamina C)',
-      'Compresse effervescenti al gusto agrumi, rapido assorbimento',
-      'Con estratto titolato di Echinacea Purpurea'
-    ],
-    color: 'red',
-    targetQuantity: 35,
-    currentQuantity: 8,
-    batchExpiry: '02/2027',
-    priorityReason: 'Accordo commerciale stagionale con marginalità strategica',
-    notesForStaff: 'Proponilo a chi acquista prodotti per il raffreddore per velocizzare il recupero.',
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: 'prod-003',
-    name: 'Magnesio + Potassio Fast Bustine',
-    brand: 'Equilibrio Sanitas',
-    category: 'Integratori & Energia',
-    sku: 'MAGN-24',
-    adviceTrigger: 'Persone che lamentano stanchezza mattutina, crampi notturni o cambio stagione',
-    crossSellSuggestions: ['Pazienti ipertesi in terapia con diuretici', 'Sportivi', 'Over 65'],
-    sellingPoints: [
-      'Zero zuccheri aggiunti, ideale anche per diabetici',
-      'Magnesio chelato bisglicinato a tolleranza gastrica ottimale',
-      'Azione rapida contro la spossatezza muscolare'
-    ],
-    color: 'orange',
-    targetQuantity: 30,
-    currentQuantity: 14,
-    batchExpiry: '06/2027',
-    priorityReason: 'Rotazione regolare consigliata',
-    notesForStaff: 'Ottimo abbinamento con diuretici o per chi chiede qualcosa contro la debolezza.',
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: 'prod-004',
-    name: 'Ceramidi Lipid Crema Barriera 150ml',
-    brand: 'DermoDerma Lab',
-    category: 'Dermocosmesi & Pelle',
-    sku: 'DERM-150',
-    adviceTrigger: 'Richiesta di creme cortisoniche, dermatite secca, disidratazione mani dal freddo',
-    crossSellSuggestions: ['Corticosteroidi topici', 'Antistaminici', 'Saponi mani frequenti'],
-    sellingPoints: [
-      'Ripristina la barriera lipidica cutanea con 3 ceramidi essenziali',
-      'Texture nutriente non unta, priva di profumo e conservanti irritanti',
-      'Consigliata per adulti e pelli atopiche pediatriche'
-    ],
-    color: 'orange',
-    targetQuantity: 25,
-    currentQuantity: 11,
-    batchExpiry: '08/2027',
-    priorityReason: 'Focus dermocosmetico stagionale',
-    notesForStaff: 'Abbinamento ideale quando dispensate idrocortisone per prolungare il benessere cutaneo.',
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: 'prod-005',
-    name: 'OcuRelief Gocce Oculari Idratanti 10ml',
-    brand: 'VisioCare',
-    category: 'Oculare & Benessere',
-    sku: 'OCU-10',
-    adviceTrigger: 'Occhi rossi da videoterminale, colliri decongestionanti vasocostrittori',
-    crossSellSuggestions: ['Colliri generici', 'Antistaminici orali', 'Lavoratori al computer'],
-    sellingPoints: [
-      'Acido ialuronico 0.2% sterile senza conservanti',
-      'Flacone pluridose brevettato con sistema OSD anti-contaminazione',
-      'Compatibile con lenti a contatto a permanenza'
-    ],
-    color: 'yellow',
-    targetQuantity: 20,
-    currentQuantity: 16,
-    batchExpiry: '01/2028',
-    priorityReason: 'Vicino all obiettivo prefissato',
-    notesForStaff: 'Siamo quasi al traguardo! Ancora pochi consigli e possiamo considerarlo saturato.',
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: 'prod-006',
-    name: 'Sedatol Gola Spray Barriera Mucoadesivo',
-    brand: 'ErbaSanitas',
-    category: 'Vie Respiratorie',
-    sku: 'GOLA-30',
-    adviceTrigger: 'Mal di gola iniziale, bruciore alla deglutizione, fumatori o raucedine',
-    crossSellSuggestions: ['Sciroppi mucolitici', 'Pastiglie balsamiche', 'Collutori'],
-    sellingPoints: [
-      'Propoli decerata idrodispersibile + Aloe gel protettivo',
-      'Nebulizzatore orientabile preciso per il retrofaringe',
-      'Non brucia la mucosa infiammata'
-    ],
-    color: 'yellow',
-    targetQuantity: 25,
-    currentQuantity: 21,
-    batchExpiry: '12/2027',
-    priorityReason: 'Ultimo sprint per chiudere il lotto stagionale',
-    notesForStaff: 'Ultimi pezzi della campagna, ottimo per chi cerca una soluzione naturale efficace.',
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: 'prod-007',
-    name: 'Melatonina Crono 1mg Notte Rilassata',
-    brand: 'SomnoLab',
-    category: 'Integratori & Energia',
-    sku: 'MEL-60',
-    adviceTrigger: 'Difficoltà ad addormentarsi, risvegli notturni o ansia da cambio ora',
-    crossSellSuggestions: ['Tisane rilassanti', 'Ansiolitici su ricetta (inquadramento)', 'Magnesio'],
-    sellingPoints: [
-      'Rilascio bifasico: immediato 0.5mg per sonno rapido + ritardato 0.5mg per sonno continuo',
-      'Con Escolzia e Passiflora titolate',
-      'Non crea assuefazione o intontimento mattutino'
-    ],
-    color: 'green',
-    targetQuantity: 30,
-    currentQuantity: 31,
-    batchExpiry: '04/2028',
-    priorityReason: 'Obiettivo completato con successo!',
-    notesForStaff: 'TRAGUARDO RAGGIUNTO! Ottimo lavoro di squadra. Consigliare solo su esplicita richiesta del cliente.',
-    lastUpdated: new Date().toISOString(),
-  },
-];
-
-const DEFAULT_ANTIBIOTICI_PRODUCTS: ProductItem[] = [
-  {
-    id: 'anti-001',
-    name: 'ProbioForte 20 Miliardi Bustine',
-    brand: 'MicroBioLab',
-    category: 'Fermenti & Digestione',
-    sku: 'PRO-20B',
-    adviceTrigger: 'Prescrizioni di Amoxicillina/Clavulanico, Ciprofloxacina o Azitromicina',
-    crossSellSuggestions: ['Antibiotici sistemici', 'Pazienti anziani'],
-    sellingPoints: ['20 miliardi UFC di 4 ceppi gastroresistenti', 'Arricchito con Zinco e FOS'],
-    color: 'red',
-    targetQuantity: 50,
-    currentQuantity: 12,
-    batchExpiry: '10/2027',
-    priorityReason: 'Abbinamento essenziale per prevenire la diarrea da antibiotico',
-    notesForStaff: 'Consigliare tassativamente: assumere a 3 ore di distanza dall antibiotico.',
-    lastUpdated: new Date().toISOString(),
-  },
-  {
-    id: 'anti-002',
-    name: 'GastroRepair Gel Mucoadesivo Bustine',
-    brand: 'MedSanitas',
-    category: 'Fermenti & Digestione',
-    sku: 'GAS-20',
-    adviceTrigger: 'Pazienti con prescrizione di FANS (Ibuprofene, Ketoprofene) o bruciore di stomaco',
-    crossSellSuggestions: ['Antinfiammatori', 'Antidolorifici'],
-    sellingPoints: ['Effetto zattera con alginato e mucillagini', 'Sollievo in 3 minuti'],
-    color: 'orange',
-    targetQuantity: 30,
-    currentQuantity: 10,
-    batchExpiry: '05/2027',
-    priorityReason: 'Protezione naturale dello stomaco senza alterare il pH gastrico',
-    notesForStaff: 'Ideale per chi assume antinfiammatori per diversi giorni.',
-    lastUpdated: new Date().toISOString(),
-  },
-];
-
-const INITIAL_LISTS: CustomList[] = [
-  {
-    id: 'list-autunno-inverno',
-    name: 'Consiglio Autunno/Inverno',
-    description: 'Focus su difese immunitarie, integratori per stanchezza da cambio stagione, fermenti per terapie antibiotiche e protezione pelle dal freddo.',
-    periodType: 'seasonal',
-    startDate: '2026-10-01',
-    endDate: '2027-02-28',
-    isActive: true,
-    products: DEFAULT_AUTUNNO_PRODUCTS,
-    createdAt: new Date().toISOString(),
-    lastModified: new Date().toISOString(),
-  },
-  {
-    id: 'list-focus-antibiotici',
-    name: 'Focus Antibiotici & Terapie Gastriche',
-    description: 'Campagna specifica per affiancare probiotici ad alta concentrazione a ogni ricetta medica antibiotica o antinfiammatoria.',
-    periodType: 'monthly',
-    startDate: '2026-10-15',
-    endDate: '2026-11-15',
-    isActive: false,
-    products: DEFAULT_ANTIBIOTICI_PRODUCTS,
-    createdAt: new Date().toISOString(),
-    lastModified: new Date().toISOString(),
-  },
-];
-
-const INITIAL_STORE: PharmacyStore = {
-  pharmacyName: 'Farmacia Centrale San Rocco',
-  activeListId: 'list-autunno-inverno',
-  lists: INITIAL_LISTS,
-  config: {
-    id: 'camp-2026-curr',
-    title: 'Consiglio Autunno/Inverno',
-    periodType: 'seasonal',
-    startDate: '2026-10-01',
-    endDate: '2027-02-28',
-    pharmacyName: 'Farmacia Centrale San Rocco',
-    notes: 'Focus speciale su prevenzione stagionale, fermenti con antibiotico e rotazione scorte di magazzino.',
-  },
-  products: DEFAULT_AUTUNNO_PRODUCTS,
-  historyLog: [],
-};
 
 function ensureDataFile(): PharmacyStore {
   try {
@@ -305,8 +82,8 @@ function ensureDataFile(): PharmacyStore {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     if (!fs.existsSync(STORE_FILE)) {
-      fs.writeFileSync(STORE_FILE, JSON.stringify(INITIAL_STORE, null, 2), 'utf-8');
-      return INITIAL_STORE;
+      fs.writeFileSync(STORE_FILE, JSON.stringify(buildInitialStore(), null, 2), 'utf-8');
+      return buildInitialStore();
     }
     const raw = fs.readFileSync(STORE_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
@@ -321,11 +98,11 @@ function ensureDataFile(): PharmacyStore {
         startDate: parsed.config?.startDate || '2026-10-01',
         endDate: parsed.config?.endDate || '2027-02-28',
         isActive: true,
-        products: parsed.products || DEFAULT_AUTUNNO_PRODUCTS,
+        products: parsed.products || buildDefaultAutunnoProducts(),
         createdAt: new Date().toISOString(),
         lastModified: new Date().toISOString(),
       };
-      parsed.lists = [activeList, ...INITIAL_LISTS.filter(l => l.id !== 'list-autunno-inverno')];
+      parsed.lists = [activeList, ...buildInitialLists().filter(l => l.id !== 'list-autunno-inverno')];
       parsed.activeListId = activeList.id;
       parsed.pharmacyName = parsed.config?.pharmacyName || 'Farmacia Centrale San Rocco';
     }
@@ -347,7 +124,7 @@ function ensureDataFile(): PharmacyStore {
     return parsed;
   } catch (err) {
     console.error('Error reading store file, falling back to initial data:', err);
-    return INITIAL_STORE;
+    return buildInitialStore();
   }
 }
 
@@ -378,14 +155,6 @@ function syncActiveListProducts(store: PharmacyStore) {
   }
 }
 
-export function computeAutoColor(current: number, target: number): TrafficLightColor {
-  if (target <= 0) return 'green';
-  const ratio = current / target;
-  if (ratio >= 0.95) return 'green';
-  if (ratio >= 0.70) return 'yellow';
-  if (ratio >= 0.35) return 'orange';
-  return 'red';
-}
 
 let store: PharmacyStore = ensureDataFile();
 syncActiveListProducts(store);
@@ -449,9 +218,9 @@ async function startServer() {
 
     let initialProducts: ProductItem[] = [];
     if (template === 'autunno') {
-      initialProducts = JSON.parse(JSON.stringify(DEFAULT_AUTUNNO_PRODUCTS));
+      initialProducts = buildDefaultAutunnoProducts();
     } else if (template === 'antibiotici') {
-      initialProducts = JSON.parse(JSON.stringify(DEFAULT_ANTIBIOTICI_PRODUCTS));
+      initialProducts = buildDefaultAntibioticiProducts();
     }
 
     const newList: CustomList = {
@@ -788,9 +557,41 @@ async function startServer() {
     });
   });
 
+  // 8b. Update campaign / cycle configuration (pannello titolare)
+  //     NB: `syncActiveListProducts` riscrive `store.config` a partire dalla lista
+  //     attiva, quindi le modifiche vanno applicate alla lista: altrimenti verrebbero
+  //     subito sovrascritte. (Prima questa rotta non esisteva affatto e la UI
+  //     riceveva un 404 al salvataggio delle impostazioni del ciclo.)
+  app.post('/api/campaign', (req: Request, res: Response) => {
+    const activeList = store.lists.find((l) => l.id === store.activeListId) || store.lists[0];
+    if (!activeList) {
+      return res.status(404).json({ error: 'Nessuna lista attiva trovata' });
+    }
+
+    const { title, periodType, startDate, endDate, notes, pharmacyName } = req.body || {};
+
+    if (title !== undefined && String(title).trim()) activeList.name = String(title).trim();
+    if (periodType !== undefined) activeList.periodType = periodType;
+    if (startDate !== undefined) activeList.startDate = startDate;
+    if (endDate !== undefined) activeList.endDate = endDate;
+    if (notes !== undefined) activeList.description = String(notes);
+    activeList.lastModified = new Date().toISOString();
+
+    if (pharmacyName !== undefined && String(pharmacyName).trim()) {
+      store.pharmacyName = String(pharmacyName).trim();
+      store.config.pharmacyName = store.pharmacyName;
+    }
+
+    syncActiveListProducts(store);
+    saveStore(store);
+    broadcastUpdate();
+
+    return res.json({ success: true, data: store.config });
+  });
+
   // 9. Reset to default demo data
   app.post('/api/reset-demo', (_req: Request, res: Response) => {
-    store = JSON.parse(JSON.stringify(INITIAL_STORE));
+    store = buildInitialStore();
     syncActiveListProducts(store);
     saveStore(store);
     broadcastUpdate();

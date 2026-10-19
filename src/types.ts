@@ -1,5 +1,8 @@
 export type TrafficLightColor = 'red' | 'orange' | 'yellow' | 'green';
 
+/** Cadenza di una lista/campagna. Allineato con `server.ts`. */
+export type PeriodType = 'weekly' | 'biweekly' | 'monthly' | 'seasonal';
+
 export interface ProductItem {
   id: string;
   name: string;
@@ -21,7 +24,7 @@ export interface ProductItem {
 export interface CampaignConfig {
   id: string;
   title: string;
-  periodType: 'weekly' | 'biweekly' | 'monthly';
+  periodType: PeriodType;
   startDate: string;
   endDate: string;
   pharmacyName: string;
@@ -42,7 +45,7 @@ export interface CustomList {
   id: string;
   name: string;
   description: string;
-  periodType: 'weekly' | 'biweekly' | 'monthly' | 'seasonal';
+  periodType: PeriodType;
   startDate: string;
   endDate: string;
   isActive: boolean;

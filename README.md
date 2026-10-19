@@ -42,8 +42,9 @@ Nella farmacia moderna, il banco vendita si evolve sempre più da semplice dispe
 ## 🚀 Guida all'Installazione & Avvio
 
 ### Prerequisiti
-- **Node.js** versione 18.0 o superiore
-- **npm** versione 9.0 o superiore
+- **Node.js** versione **20.19 o superiore** (Vite 8 non supporta Node 18)
+- **npm** versione **11 o superiore** — con npm 10.8.x l'installazione si interrompe
+  con `Cannot read properties of null (reading 'edgesOut')`. Aggiorna con `npm install -g npm@11`.
 
 ### 1. Clona il Repository
 ```bash
@@ -64,9 +65,71 @@ Apri il browser su [http://localhost:3000](http://localhost:3000).
 
 ### 4. Build per la Produzione
 ```bash
-npm run build
-npm start
+npm run build      # genera dist/
+npm start          # avvia Express (API + SSE) e serve dist/
 ```
+> `npm start` esegue `tsx server.ts`: Node non può lanciare direttamente un file
+> `.ts`. In alternativa `npm run start:prod` fa build + avvio in un colpo solo.
+
+### 5. Verificare in locale la build destinata a GitHub Pages
+```bash
+npm run build:pages     # build in "modalità statica" (dati nel browser)
+npm run preview:pages   # la serve, per provarla prima di pubblicarla
+```
+
+---
+
+## 🌍 Pubblicazione su GitHub Pages (gratis)
+
+GitHub Pages è **hosting solo statico**: pubblica file, non esegue Node.
+`server.ts` (Express, REST API, stream SSE) lì **non può girare**.
+
+FarmaCromia risolve la cosa con un livello dati a due modalità: la stessa UI
+funziona sia agganciata al backend Express, sia — quando il backend non c'è —
+su `localStorage` con sincronizzazione fra le schede del browser.
+Il rilevamento è automatico (`src/services/api.ts`).
+
+### Setup una tantum
+
+1. **Imposta la source su Actions** — è il passaggio che quasi sempre manca:
+   `Settings` ➔ `Pages` ➔ *Build and deployment* ➔ **Source: GitHub Actions**.
+
+   > Finché resta su *"Deploy from a branch"*, GitHub serve i **file sorgente**:
+   > arriva al browser un `index.html` con `<script src="/src/main.tsx">`, che
+   > punta a un file TypeScript inesistente al percorso giusto. Risultato:
+   > **pagina bianca**.
+
+2. Verifica che il nome del repository corrisponda al percorso del sito:
+   il repo `ToPush` è servito su `https://<utente>.github.io/ToPush/`.
+
+Da qui in poi ogni `git push` su `main` triggera `.github/workflows/deploy.yml`,
+che installa, type-checka, compila con `--mode pages` e pubblica `dist/`.
+
+### Come mai funziona a qualsiasi sottopercorso
+
+`vite.config.ts` usa `base: './'`: gli asset vengono referenziati con URL
+**relativi** (`./assets/index-xxx.js`) invece che assoluti (`/assets/...`).
+Con path assoluti il browser li cercherebbe su `https://<utente>.github.io/assets/...`
+— fuori dal sottopercorso del progetto — ottenendo 404 e di nuovo pagina bianca.
+Gli URL relativi continuano a funzionare anche se rinomini il repository.
+
+### ⚠️ Limiti della modalità statica
+
+| | Backend Express | GitHub Pages (statico) |
+| :-- | :-- | :-- |
+| Dati condivisi fra i terminali | ✅ sì | ❌ no, per browser/dispositivo |
+| Sync real-time fra dispositivi (SSE) | ✅ sì | ❌ no |
+| Sync fra schede dello stesso browser | ✅ sì | ✅ sì (BroadcastChannel) |
+| Persistenza | ✅ file `data/pharmacy_store.json` | ✅ `localStorage` |
+| Costo | host Node richiesto | **gratis** |
+
+In modalità statica l'etichetta in alto a destra mostra **`Modalità Locale`**
+invece di `Sincronizzato Live`, così nessuno al banco crede di condividere i
+dati con gli altri terminali.
+
+> Serve la sincronizzazione fra tutti i banchi della farmacia? Allora va usato il
+> backend Express su un host Node, oppure un servizio dati gratuito con realtime
+> (es. Supabase free tier). GitHub Pages da solo non può farlo.
 
 ---
 
@@ -89,19 +152,31 @@ npm start
 4. **Condividi l'URL tra i Banchi**:
    Apri lo stesso indirizzo su tutti i monitor del banco, sui tablet o sugli smartphone dello staff: la sincronizzazione è istantanea!
 
+   > ⚠️ Vale **solo con il backend Express attivo**. Nella versione statica su
+   > GitHub Pages ogni dispositivo ha i propri dati: vedi
+   > [Limiti della modalità statica](#️-limiti-della-modalità-statica).
+
 ---
 
 ## 📁 Struttura del Progetto
 
 ```
 farmacromia/
+├── .github/workflows/deploy.yml    # CI: build --mode pages + pubblicazione su GitHub Pages
 ├── server.ts                       # Server Express full-stack con Server-Sent Events (SSE) e REST API
 ├── data/
 │   └── .gitkeep                    # Cartella di persistenza runtime locale (i dati json sono in .gitignore)
+├── public/
+│   ├── .nojekyll                   # Disattiva Jekyll su Pages (altrimenti ignora alcuni asset)
+│   └── favicon.svg                 # Icona a semaforo (evita il 404 su /favicon.ico)
 ├── src/
 │   ├── types.ts                    # Tipi TypeScript, semafori cromatici e interfacce
+│   ├── data/
+│   │   └── seed.ts                 # Unica fonte dei dati demo: usata sia da server.ts sia dal browser
 │   ├── services/
-│   │   └── api.ts                  # Client API e listener SSE in tempo reale
+│   │   ├── api.ts                  # Facciata a 2 modalità: rileva il backend e smista le chiamate
+│   │   ├── remoteBackend.ts        # Client HTTP + SSE verso Express (modalità full-stack)
+│   │   └── localBackend.ts         # Stessa API su localStorage + BroadcastChannel (modalità statica)
 │   ├── components/
 │   │   ├── TopNav.tsx              # Barra superiore conforme al contratto 3-zone
 │   │   ├── ListSelectorBar.tsx     # Selettore, rinomina e switch liste attive
@@ -115,10 +190,11 @@ farmacromia/
 │   ├── App.tsx                     # Componente radice React con gestione viste e notifiche
 │   ├── main.tsx                    # Entry point React 19
 │   └── index.css                   # Tailwind CSS v4 con Plus Jakarta Sans
+├── .env.pages                      # VITE_STATIC_MODE=true: forza la modalità statica nella CI
 ├── index.html                      # Entry point HTML con metadati
 ├── package.json                    # Dipendenze ed scripts
 ├── tsconfig.json                   # Configurazione TypeScript
-└── vite.config.ts                  # Configurazione Vite
+└── vite.config.ts                  # Configurazione Vite (base './' per GitHub Pages)
 ```
 
 ---

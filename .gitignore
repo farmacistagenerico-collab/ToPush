@@ -6,5 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+# La config di build per GitHub Pages deve essere versionata (la usa la CI).
+!.env.pages
+!.env.single
 data/*.json
 !data/.gitkeep

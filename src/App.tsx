@@ -6,6 +6,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PharmacyStore, ProductItem, CampaignConfig, CustomList, HistoryLogEntry, TrafficLightColor, COLOR_METAS } from './types';
 import {
+  getBackendMode,
+  type BackendMode,
   fetchPharmacyState,
   recommendProduct,
   updateProduct,
@@ -35,6 +37,8 @@ export default function App() {
   const [store, setStore] = useState<PharmacyStore | null>(null);
   const [activeView, setActiveView] = useState<'counter' | 'manager'>('counter');
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [backendMode, setBackendMode] = useState<BackendMode | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isCrossSellingOpen, setIsCrossSellingOpen] = useState(false);
   const [isMethodExplainerOpen, setIsMethodExplainerOpen] = useState(false);
   const [isCreateListOpen, setIsCreateListOpen] = useState(false);
@@ -44,14 +48,26 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
 
+    getBackendMode()
+      .then((mode) => {
+        if (isMounted) setBackendMode(mode);
+      })
+      .catch(() => {
+        /* la UI resta in stato indeterminato: non è bloccante */
+      });
+
     fetchPharmacyState()
       .then((data) => {
         if (isMounted) {
           setStore(data);
+          setLoadError(null);
         }
       })
       .catch((err) => {
         console.error('Error fetching initial pharmacy state:', err);
+        if (isMounted) {
+          setLoadError(err?.message || 'Errore sconosciuto');
+        }
       });
 
     // Subscribe to SSE real-time stream for multi-device sync
@@ -233,6 +249,28 @@ export default function App() {
     }
   };
 
+  if (!store && loadError) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h2 className="text-base font-bold text-slate-800">
+            Impossibile avviare FarmaCromia
+          </h2>
+          <p className="text-xs text-slate-500 leading-relaxed">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
+          >
+            Riprova
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!store) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -260,6 +298,7 @@ export default function App() {
         onOpenCrossSelling={() => setIsCrossSellingOpen(true)}
         onOpenMethodExplainer={() => setIsMethodExplainerOpen(true)}
         isRealtimeConnected={isRealtimeConnected}
+        backendMode={backendMode}
         activeCycleTitle={activeList?.name || store.config.title}
       />
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Check, EyeOff, ShieldCheck, Zap, HeartHandshake, Smile } from 'lucide-react';
+import trafficLightSpheresImg from '../assets/images/traffic_light_spheres_1792400430317.jpg';
 
 interface MethodExplainerModalProps {
   isOpen: boolean;
@@ -35,7 +36,7 @@ export const MethodExplainerModal: React.FC<MethodExplainerModalProps> = ({ isOp
           {/* Visual Concept Banner */}
           <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-16/9 sm:aspect-21/9 max-h-48">
             <img
-              src="/src/assets/images/traffic_light_spheres_1792400430317.jpg"
+              src={trafficLightSpheresImg}
               alt="Indicatori cromatici a semaforo per il consiglio in farmacia"
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"

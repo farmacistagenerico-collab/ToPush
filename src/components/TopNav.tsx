@@ -7,6 +7,8 @@ interface TopNavProps {
   onOpenCrossSelling: () => void;
   onOpenMethodExplainer: () => void;
   isRealtimeConnected: boolean;
+  /** 'server' = backend Express + SSE, 'local' = statico (GitHub Pages), null = in rilevamento */
+  backendMode?: 'server' | 'local' | null;
   activeCycleTitle: string;
 }
 
@@ -16,6 +18,7 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenCrossSelling,
   onOpenMethodExplainer,
   isRealtimeConnected,
+  backendMode,
   activeCycleTitle,
 }) => {
   return (
@@ -99,7 +102,13 @@ export const TopNav: React.FC<TopNavProps> = ({
           </div>
 
           <div
-            title={isRealtimeConnected ? 'Sincronizzato in tempo reale tra tutti i dispositivi' : 'Connessione al server in corso...'}
+            title={
+              backendMode === 'local'
+                ? 'Modalità locale (sito statico): i dati sono salvati in questo browser e sincronizzati fra le schede aperte. Per la sincronizzazione fra tutti i terminali della farmacia serve il backend Node.'
+                : isRealtimeConnected
+                  ? 'Sincronizzato in tempo reale tra tutti i dispositivi'
+                  : 'Connessione al server in corso...'
+            }
             className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 bg-slate-50"
           >
             <span
@@ -108,7 +117,11 @@ export const TopNav: React.FC<TopNavProps> = ({
               }`}
             />
             <span className="whitespace-nowrap">
-              {isRealtimeConnected ? 'Sincronizzato Live' : 'Connessione...'}
+              {backendMode === 'local'
+                ? 'Modalità Locale'
+                : isRealtimeConnected
+                  ? 'Sincronizzato Live'
+                  : 'Connessione...'}
             </span>
           </div>
 

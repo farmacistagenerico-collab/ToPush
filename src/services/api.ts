@@ -1,13 +1,99 @@
-import { PharmacyStore, ProductItem, CampaignConfig, CustomList, TrafficLightColor } from '../types';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Punto d'accesso unico ai dati per tutta la UI.
+ *
+ * FarmaCromia gira in due modalità e questo modulo sceglie da solo quale usare:
+ *
+ *   1. `server` — il backend Express (`server.ts`) risponde su `/api/*`.
+ *                  Dati condivisi fra tutti i terminali + SSE real-time.
+ *                  (dev locale, oppure deploy full-stack su un host Node)
+ *
+ *   2. `local`  — nessun backend raggiungibile: si usa `localBackend.ts`,
+ *                  che persiste su `localStorage` e sincronizza le schede
+ *                  dello stesso browser via `BroadcastChannel`.
+ *                  È la modalità di GitHub Pages, che è solo statico.
+ *
+ * I componenti React importano sempre e solo da qui: nessuna modifica alla UI
+ * è necessaria per passare dall'una all'altra modalità.
+ */
+import type { CampaignConfig, CustomList, PharmacyStore, ProductItem, TrafficLightColor } from '../types';
+import * as local from './localBackend';
+import * as remote from './remoteBackend';
+
+export type BackendMode = 'server' | 'local';
+
+/** Millisecondi concessi al backend per rispondere prima di passare in locale. */
+const PROBE_TIMEOUT_MS = 3000;
+
+let modePromise: Promise<BackendMode> | null = null;
+let resolvedMode: BackendMode | null = null;
+
+function staticFlagEnabled(): boolean {
+  // Impostato dalla build di GitHub Pages (vedi .github/workflows/deploy.yml).
+  return import.meta.env.VITE_STATIC_MODE === 'true';
+}
+
+/**
+ * Verifica la presenza del backend Express.
+ * Su GitHub Pages `/api/state` restituisce la pagina di 404 in HTML: il controllo
+ * sul `Content-Type` evita di scambiare quell'HTML per uno stato valido.
+ */
+async function probeBackend(): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  try {
+    const res = await fetch('/api/state', {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return false;
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) return false;
+    const json = await res.json();
+    return Boolean(json && json.data);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Risolve la modalità una sola volta per tutta la sessione. */
+export function getBackendMode(): Promise<BackendMode> {
+  if (resolvedMode) return Promise.resolve(resolvedMode);
+  if (!modePromise) {
+    modePromise = (async () => {
+      const mode: BackendMode = staticFlagEnabled() ? 'local' : (await probeBackend()) ? 'server' : 'local';
+      resolvedMode = mode;
+      if (mode === 'local') {
+        console.info(
+          '[FarmaCromia] Backend non raggiungibile: modalità locale attiva ' +
+            '(dati salvati in questo browser, sincronizzati fra le schede aperte).'
+        );
+      }
+      return mode;
+    })();
+  }
+  return modePromise;
+}
+
+async function useLocal(): Promise<boolean> {
+  return (await getBackendMode()) === 'local';
+}
+
+/* ------------------------------------------------------------------ */
+/* Lettura stato                                                       */
+/* ------------------------------------------------------------------ */
 
 export async function fetchPharmacyState(): Promise<PharmacyStore> {
-  const res = await fetch('/api/state');
-  if (!res.ok) {
-    throw new Error(`Errore caricamento stato: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.data;
+  return (await useLocal()) ? local.fetchPharmacyState() : remote.fetchPharmacyState();
 }
+
+/* ------------------------------------------------------------------ */
+/* Liste                                                               */
+/* ------------------------------------------------------------------ */
 
 export async function createCustomList(data: {
   name: string;
@@ -18,185 +104,124 @@ export async function createCustomList(data: {
   makeActive?: boolean;
   template?: string;
 }): Promise<CustomList> {
-  const res = await fetch('/api/lists', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || `Errore creazione lista: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.data;
+  return (await useLocal()) ? local.createCustomList(data) : remote.createCustomList(data);
 }
 
 export async function updateCustomList(id: string, data: Partial<CustomList>): Promise<CustomList> {
-  const res = await fetch(`/api/lists/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    throw new Error(`Errore aggiornamento lista: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.data;
+  return (await useLocal()) ? local.updateCustomList(id, data) : remote.updateCustomList(id, data);
 }
 
 export async function activateCustomList(id: string): Promise<CustomList> {
-  const res = await fetch(`/api/lists/${id}/activate`, {
-    method: 'POST',
-  });
-  if (!res.ok) {
-    throw new Error(`Errore attivazione lista: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.data;
+  return (await useLocal()) ? local.activateCustomList(id) : remote.activateCustomList(id);
 }
 
 export async function duplicateCustomList(id: string): Promise<CustomList> {
-  const res = await fetch(`/api/lists/${id}/duplicate`, {
-    method: 'POST',
-  });
-  if (!res.ok) {
-    throw new Error(`Errore duplicazione lista: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.data;
+  return (await useLocal()) ? local.duplicateCustomList(id) : remote.duplicateCustomList(id);
 }
 
 export async function deleteCustomList(id: string): Promise<boolean> {
-  const res = await fetch(`/api/lists/${id}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || `Errore eliminazione lista: ${res.statusText}`);
-  }
-  return true;
+  return (await useLocal()) ? local.deleteCustomList(id) : remote.deleteCustomList(id);
 }
 
-export async function recommendProduct(productId: string, staffMember?: string): Promise<{
+/* ------------------------------------------------------------------ */
+/* Prodotti                                                            */
+/* ------------------------------------------------------------------ */
+
+export async function recommendProduct(
+  productId: string,
+  staffMember?: string
+): Promise<{
   success: boolean;
   product: ProductItem;
   colorTransition: { from: TrafficLightColor; to: TrafficLightColor } | null;
 }> {
-  const res = await fetch(`/api/products/${productId}/recommend`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ staffMember: staffMember || 'Banco Vendita' }),
-  });
-  if (!res.ok) {
-    throw new Error(`Errore registrazione consiglio: ${res.statusText}`);
-  }
-  return res.json();
+  return (await useLocal())
+    ? local.recommendProduct(productId, staffMember)
+    : remote.recommendProduct(productId, staffMember);
 }
 
 export async function updateProduct(productId: string, data: Partial<ProductItem>): Promise<ProductItem> {
-  const res = await fetch(`/api/products/${productId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    throw new Error(`Errore aggiornamento prodotto: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.data;
+  return (await useLocal()) ? local.updateProduct(productId, data) : remote.updateProduct(productId, data);
 }
 
 export async function createProduct(data: Partial<ProductItem>): Promise<ProductItem> {
-  const res = await fetch('/api/products', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    throw new Error(`Errore creazione prodotto: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.data;
+  return (await useLocal()) ? local.createProduct(data) : remote.createProduct(data);
 }
 
 export async function deleteProduct(productId: string): Promise<boolean> {
-  const res = await fetch(`/api/products/${productId}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) {
-    throw new Error(`Errore eliminazione prodotto: ${res.statusText}`);
-  }
-  return true;
+  return (await useLocal()) ? local.deleteProduct(productId) : remote.deleteProduct(productId);
 }
 
-export async function batchImportProducts(items: Partial<ProductItem>[], replaceExisting: boolean = false): Promise<number> {
-  const res = await fetch('/api/products/batch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items, replaceExisting }),
-  });
-  if (!res.ok) {
-    throw new Error(`Errore importazione batch: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.importedCount;
+export async function batchImportProducts(
+  items: Partial<ProductItem>[],
+  replaceExisting: boolean = false
+): Promise<number> {
+  return (await useLocal())
+    ? local.batchImportProducts(items, replaceExisting)
+    : remote.batchImportProducts(items, replaceExisting);
 }
+
+/* ------------------------------------------------------------------ */
+/* Campagna e reset                                                    */
+/* ------------------------------------------------------------------ */
 
 export async function updateCampaign(data: Partial<CampaignConfig>): Promise<CampaignConfig> {
-  const res = await fetch('/api/campaign', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    throw new Error(`Errore aggiornamento campagna: ${res.statusText}`);
-  }
-  const json = await res.json();
-  return json.data;
+  return (await useLocal()) ? local.updateCampaign(data) : remote.updateCampaign(data);
 }
 
 export async function resetDemoData(): Promise<boolean> {
-  const res = await fetch('/api/reset-demo', {
-    method: 'POST',
-  });
-  if (!res.ok) {
-    throw new Error(`Errore ripristino dati demo: ${res.statusText}`);
-  }
-  return true;
+  return (await useLocal()) ? local.resetDemoData() : remote.resetDemoData();
 }
 
 export async function resetBlankData(): Promise<boolean> {
-  const res = await fetch('/api/reset-blank', {
-    method: 'POST',
-  });
-  if (!res.ok) {
-    throw new Error(`Errore azzeramento versione in bianco: ${res.statusText}`);
-  }
-  return true;
+  return (await useLocal()) ? local.resetBlankData() : remote.resetBlankData();
 }
 
+/* ------------------------------------------------------------------ */
+/* Real-time                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * In modalità `server` apre lo stream SSE; in modalità `local` si aggancia al
+ * BroadcastChannel. La risoluzione della modalità è asincrona, quindi l'unsubscribe
+ * annulla anche una sottoscrizione non ancora aperta.
+ */
 export function subscribeToRealtimeUpdates(
   onUpdate: (store: PharmacyStore) => void,
   onError?: (err: Event) => void
 ): () => void {
-  const eventSource = new EventSource('/api/stream');
+  let dispose: (() => void) | null = null;
+  let cancelled = false;
 
-  eventSource.onmessage = (event) => {
-    try {
-      const payload = JSON.parse(event.data);
-      if (payload.data) {
-        onUpdate(payload.data);
-      }
-    } catch (err) {
-      console.warn('Invalid SSE event data:', err);
-    }
-  };
-
-  eventSource.onerror = (err) => {
-    if (onError) onError(err);
-  };
+  getBackendMode()
+    .then((mode) => {
+      if (cancelled) return;
+      dispose =
+        mode === 'local'
+          ? local.subscribeToRealtimeUpdates(onUpdate, onError)
+          : remote.subscribeToRealtimeUpdates(onUpdate, onError);
+    })
+    .catch((err) => {
+      console.error('[FarmaCromia] Impossibile inizializzare il canale real-time:', err);
+      if (!cancelled && onError) onError(new Event('error'));
+    });
 
   return () => {
-    eventSource.close();
+    cancelled = true;
+    if (dispose) dispose();
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Info per la UI                                                      */
+/* ------------------------------------------------------------------ */
+
+/** True se i dati vivono solo in questo browser (nessun backend Node). */
+export async function isLocalMode(): Promise<boolean> {
+  return (await getBackendMode()) === 'local';
+}
+
+/** True se il browser offre una persistenza reale (localStorage disponibile). */
+export function isPersistentStorage(): boolean {
+  return local.isPersistent();
 }
