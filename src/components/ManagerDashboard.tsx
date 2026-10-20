@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { isPinFormatValid } from '../services/pin';
+import { fileToCompressedDataUrl } from '../services/image';
 import { ProductItem, CampaignConfig, CustomList, Subcategory, TrafficLightColor, COLOR_METAS, HistoryLogEntry } from '../types';
 import {
   Plus,
@@ -22,6 +23,7 @@ import {
   Tags,
   Lock,
   Unlock,
+  Camera,
 } from 'lucide-react';
 
 interface ManagerDashboardProps {
@@ -102,6 +104,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
     batchExpiry: '',
     priorityReason: 'Giacenza magazzino da smaltire',
     notesForStaff: '',
+    imageUrl: null,
   });
 
   // Batch Import Raw Text State
@@ -125,6 +128,21 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
   const [pinA, setPinA] = useState('');
   const [pinB, setPinB] = useState('');
   const [pinMsg, setPinMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const dataUrl = await fileToCompressedDataUrl(file);
+      setFormData((fd) => ({ ...fd, imageUrl: dataUrl }));
+      setPhotoError(null);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Immagine non leggibile.');
+    }
+  };
 
   const validatePinPair = (): string | null => {
     if (!isPinFormatValid(pinA)) return 'Il PIN deve essere composto da 4-8 cifre numeriche.';
@@ -254,6 +272,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
       batchExpiry: '',
       priorityReason: 'Giacenza magazzino da smaltire',
       notesForStaff: '',
+      imageUrl: null,
     });
   };
 
@@ -274,6 +293,7 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
       priorityReason: prod.priorityReason,
       notesForStaff: prod.notesForStaff,
       subcategoryId: prod.subcategoryId || null,
+      imageUrl: prod.imageUrl || null,
     });
     setShowAddModal(true);
   };
@@ -802,11 +822,26 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
 
                       {/* Product details */}
                       <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          {item.imageUrl ? (
+                            <img
+                              src={item.imageUrl}
+                              alt=""
+                              className="w-9 h-9 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0"
+                            />
+                          ) : (
+                            <span className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center text-xs font-bold shrink-0">
+                              {item.name.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          <div className="min-w-0">
                         <div className="font-bold text-slate-900 leading-tight">
                           {item.name}
                         </div>
                         <div className="text-[11px] text-slate-500 mt-0.5">
                           {item.brand} · <span className="text-slate-600">{item.category}</span>
+                        </div>
+                          </div>
                         </div>
                       </td>
 
@@ -1263,6 +1298,59 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
             </p>
 
             <form onSubmit={handleSubmitNewProduct} className="space-y-3.5">
+              {/* Foto del prodotto: scatto o caricamento, compressa automaticamente */}
+              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                {formData.imageUrl ? (
+                  <img
+                    src={formData.imageUrl}
+                    alt=""
+                    className="w-14 h-14 rounded-lg object-cover border border-slate-200 bg-white shrink-0"
+                  />
+                ) : (
+                  <span className="w-14 h-14 rounded-lg bg-white border border-dashed border-slate-300 text-slate-400 flex items-center justify-center shrink-0">
+                    <Camera className="w-5 h-5" />
+                  </span>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold text-slate-700">
+                    Foto del prodotto (facoltativa)
+                  </div>
+                  <div className="text-[11px] text-slate-500 mb-2">
+                    Compare al banco accanto al nome. Viene ridimensionata e compressa
+                    automaticamente per restare leggera nel browser.
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-slate-900 hover:bg-slate-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-colors"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>{formData.imageUrl ? 'Sostituisci foto' : 'Scatta o carica foto'}</span>
+                    </button>
+                    {formData.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, imageUrl: null })}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition-colors"
+                      >
+                        Rimuovi
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoSelected}
+                  />
+                  {photoError && (
+                    <p className="text-[11px] font-semibold text-rose-600 mt-1.5">{photoError}</p>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Nome Prodotto *

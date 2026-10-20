@@ -30,6 +30,8 @@ export interface ProductItem {
   lastUpdated: string;
   /** Sottocategoria della lista a cui il prodotto appartiene (null = nessuna). */
   subcategoryId?: string | null;
+  /** Foto del prodotto (data-url compressa) o null se assente. */
+  imageUrl?: string | null;
 }
 
 export interface CampaignConfig {

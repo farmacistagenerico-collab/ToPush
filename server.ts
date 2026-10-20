@@ -29,6 +29,8 @@ export interface ProductItem {
   batchExpiry?: string;
   priorityReason: string;
   notesForStaff: string;
+  /** Foto del prodotto (data-url compressa) o null. */
+  imageUrl?: string | null;
   lastUpdated: string;
   subcategoryId?: string | null;
 }
@@ -476,6 +478,7 @@ async function startServer() {
       batchExpiry,
       priorityReason,
       notesForStaff,
+      imageUrl,
     } = req.body;
 
     if (!name) {
@@ -501,6 +504,7 @@ async function startServer() {
       batchExpiry: (batchExpiry || '').trim(),
       priorityReason: (priorityReason || 'Priorità impostata dalla direzione').trim(),
       notesForStaff: (notesForStaff || '').trim(),
+      imageUrl: typeof imageUrl === 'string' && imageUrl.startsWith('data:image/') ? imageUrl : null,
       lastUpdated: new Date().toISOString(),
     };
 

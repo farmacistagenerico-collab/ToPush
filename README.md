@@ -33,6 +33,7 @@ Nella farmacia moderna, il banco vendita si evolve sempre più da semplice dispe
   - Imposta la cadenza: **Settimanale** (7 gg), **Bisettimanale** (14 gg), **Mensile** (30 gg) o **Stagionale**.
   - Selettore rapido: un click attiva la lista per tutti i terminali della farmacia.
 - ️ **Sottocategorie / Aree di Consiglio**: ogni lista ha le proprie aree (es. `Tosse & Gola`, `Difese Immunitarie`). Al banco compaiono come pulsanti-filtro E come titoli di gruppo; il titolare le crea, rinomina ed elimina in un tocco e assegna i prodotti con una tendina (o via CSV).
+- 📸 **Foto dei prodotti**: si scatta o si carica nel modulo Aggiungi/Modifica; viene compressa nel browser (~2 KB) e compare come miniatura al banco (lista e schede) e in gestione. Viaggia dentro i backup.
 - 💾 **Backup & Ripristino**: un pulsante scarica l'intero archivio (liste, aree di consiglio, prodotti, log) in un file `.json` datato; un altro lo ripristina con validazione e messaggi chiari. Funziona sia in modalità locale sia con il backend Express (pannello Titolare → «Configura Ciclo & Frequenza»).
 - 🔐 **PIN del Pannello Titolare**: protezione anti-distrazione a 4-8 cifre; nel deposito vive solo l'hash (SHA-256 dove disponibile). Lo sblocco dura per la scheda del browser.
 - 📱 **App installabile e offline (PWA)**: manifest + service worker; al banco l'app si apre anche senza rete e si installa in home screen. Interfaccia responsive verificata dai 320 px in su.

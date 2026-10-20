@@ -106,16 +106,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Main Content Area */}
       <div className="p-5 flex-1 flex flex-col gap-4">
-        {/* Product Title */}
-        <div>
-          <h3 className="text-base font-bold text-slate-900 tracking-tight leading-snug">
-            {product.name}
-          </h3>
-          {product.sku && (
-            <span className="text-[11px] font-mono text-slate-400 mt-0.5 block">
-              Cod. {product.sku}
-            </span>
-          )}
+        {/* Product Title (+ photo if present) */}
+        <div className="flex items-start gap-3">
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt=""
+              className="w-16 h-16 rounded-xl object-cover border border-slate-200 bg-slate-50 shrink-0"
+            />
+          ) : null}
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-slate-900 tracking-tight leading-snug">
+              {product.name}
+            </h3>
+            {product.sku && (
+              <span className="text-[11px] font-mono text-slate-400 mt-0.5 block">
+                Cod. {product.sku}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* When to recommend (Il Gancio di Consiglio al Banco) */}

@@ -412,6 +412,10 @@ export async function createProduct(data: Partial<ProductItem>): Promise<Product
     batchExpiry: (data.batchExpiry || '').trim(),
     priorityReason: (data.priorityReason || 'Priorità impostata dalla direzione').trim(),
     notesForStaff: (data.notesForStaff || '').trim(),
+    imageUrl:
+      typeof data.imageUrl === 'string' && data.imageUrl.startsWith('data:image/')
+        ? data.imageUrl
+        : null,
     lastUpdated: new Date().toISOString(),
   };
 

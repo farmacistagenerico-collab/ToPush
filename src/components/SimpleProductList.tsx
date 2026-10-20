@@ -87,7 +87,19 @@ export const SimpleProductList: React.FC<SimpleProductListProps> = ({ products, 
               </div>
 
               {/* Col 2: Product Name & Category */}
-              <div className="md:col-span-4 space-y-0.5">
+              <div className="md:col-span-4 flex items-start gap-2.5">
+                {product.imageUrl ? (
+                  <img
+                    src={product.imageUrl}
+                    alt=""
+                    className="w-10 h-10 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0"
+                  />
+                ) : (
+                  <span className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center text-sm font-bold shrink-0">
+                    {product.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <div className="space-y-0.5 min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-slate-900 tracking-tight leading-snug">
                     {product.name}
@@ -112,6 +124,7 @@ export const SimpleProductList: React.FC<SimpleProductListProps> = ({ products, 
                       <span className="text-slate-400 text-[11px]">{product.batchExpiry}</span>
                     </>
                   )}
+                </div>
                 </div>
               </div>
 
