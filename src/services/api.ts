@@ -204,6 +204,20 @@ export async function resetBlankData(): Promise<boolean> {
 }
 
 /* ------------------------------------------------------------------ */
+/* Backup e ripristino                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Serializza l'archivio corrente (browser o server) in un file di backup. */
+export async function exportBackup(): Promise<string> {
+  return (await useLocal()) ? local.exportBackup() : remote.exportBackup();
+}
+
+/** Sostituisce l'archivio corrente con quello contenuto nel file di backup. */
+export async function restoreBackup(payload: string): Promise<PharmacyStore> {
+  return (await useLocal()) ? local.restoreBackup(payload) : remote.restoreBackup(payload);
+}
+
+/* ------------------------------------------------------------------ */
 /* Real-time                                                           */
 /* ------------------------------------------------------------------ */
 

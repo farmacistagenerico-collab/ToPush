@@ -8,6 +8,7 @@
  */
 
 import { PharmacyStore, ProductItem, CampaignConfig, CustomList, TrafficLightColor } from '../types';
+import { parseBackupPayload } from './backupCore';
 
 export async function fetchPharmacyState(): Promise<PharmacyStore> {
   const res = await fetch('/api/state');
@@ -182,6 +183,36 @@ export async function resetBlankData(): Promise<boolean> {
     throw new Error(`Errore azzeramento versione in bianco: ${res.statusText}`);
   }
   return true;
+}
+
+/* ------------------------------------------------------------------ */
+/* Backup e ripristino                                                 */
+/* ------------------------------------------------------------------ */
+
+export async function exportBackup(): Promise<string> {
+  const res = await fetch('/api/backup');
+  if (!res.ok) {
+    throw new Error(`Errore creazione backup: ${res.statusText}`);
+  }
+  const json = await res.json();
+  return typeof json.data === 'string' ? json.data : JSON.stringify(json.data, null, 2);
+}
+
+export async function restoreBackup(raw: string): Promise<PharmacyStore> {
+  // Pre-validazione locale: messaggi d'errore identici in entrambe le modalità
+  // e nessun round-trip inutile verso il server per file scartati subito.
+  parseBackupPayload(raw);
+  const res = await fetch('/api/backup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: raw,
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `Errore ripristino backup: ${res.statusText}`);
+  }
+  const json = await res.json();
+  return json.data as PharmacyStore;
 }
 
 export function subscribeToRealtimeUpdates(

@@ -26,6 +26,8 @@ import {
   createSubcategory,
   updateSubcategory,
   deleteSubcategory,
+  exportBackup,
+  restoreBackup,
 } from './services/api';
 import { TopNav } from './components/TopNav';
 import { ListSelectorBar } from './components/ListSelectorBar';
@@ -266,6 +268,18 @@ export default function App() {
   };
 
   // Manager: Reset to Blank Template for GitHub
+  const handleExportBackup = async (): Promise<string> => {
+    return exportBackup();
+  };
+
+  const handleRestoreBackup = async (
+    raw: string
+  ): Promise<{ lists: number; products: number }> => {
+    const restored = await restoreBackup(raw);
+    setStore(restored);
+    return { lists: restored.lists.length, products: restored.products.length };
+  };
+
   const handleResetBlank = async () => {
     if (
       !confirm(
@@ -396,6 +410,8 @@ export default function App() {
             onUpdateCampaign={handleUpdateCampaign}
             onResetDemo={handleResetDemo}
             onResetBlank={handleResetBlank}
+            onExportBackup={handleExportBackup}
+            onRestoreBackup={handleRestoreBackup}
             onActivateList={handleActivateList}
             onRenameList={handleRenameList}
             onDuplicateList={handleDuplicateList}

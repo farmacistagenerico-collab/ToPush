@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ProductItem, CampaignConfig, CustomList, Subcategory, TrafficLightColor, COLOR_METAS, HistoryLogEntry } from '../types';
 import {
   Plus,
@@ -38,6 +38,8 @@ interface ManagerDashboardProps {
   onUpdateCampaign: (data: Partial<CampaignConfig>) => Promise<void>;
   onResetDemo: () => Promise<void>;
   onResetBlank: () => Promise<void>;
+  onExportBackup: () => Promise<string>;
+  onRestoreBackup: (raw: string) => Promise<{ lists: number; products: number }>;
   onActivateList: (id: string) => Promise<void>;
   onRenameList: (id: string, newName: string) => Promise<void>;
   onDuplicateList: (id: string) => Promise<void>;
@@ -62,6 +64,8 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
   onUpdateCampaign,
   onResetDemo,
   onResetBlank,
+  onExportBackup,
+  onRestoreBackup,
   onActivateList,
   onRenameList,
   onDuplicateList,
@@ -107,6 +111,56 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
   const [pharmacyName, setPharmacyName] = useState(config.pharmacyName);
   const [campaignNotes, setCampaignNotes] = useState(config.notes);
   const [campaignSaved, setCampaignSaved] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const backupFileRef = useRef<HTMLInputElement>(null);
+
+  const handleDownloadBackup = async () => {
+    try {
+      const payload = await onExportBackup();
+      const blob = new Blob([payload], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const now = new Date();
+      const stamp = `${now.toISOString().slice(0, 10)}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
+      link.href = url;
+      link.download = `farmacromia-backup-${stamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setBackupMsg({
+        kind: 'ok',
+        text: 'Backup scaricato: conservalo fuori dal browser (chiavetta, cloud o email).',
+      });
+    } catch (err) {
+      setBackupMsg({
+        kind: 'err',
+        text: err instanceof Error ? err.message : 'Errore durante la creazione del backup.',
+      });
+    }
+  };
+
+  const handleRestoreBackupFile = async (file: File) => {
+    const raw = await file.text();
+    if (
+      !confirm(
+        `Ripristinare il backup "${file.name}"? L'archivio attuale (liste, prodotti e aree) verrà sostituito completamente.`
+      )
+    )
+      return;
+    try {
+      const counts = await onRestoreBackup(raw);
+      setBackupMsg({
+        kind: 'ok',
+        text: `Backup ripristinato: ${counts.lists} liste e ${counts.products} prodotti.`,
+      });
+    } catch (err) {
+      setBackupMsg({
+        kind: 'err',
+        text: err instanceof Error ? err.message : 'Ripristino fallito.',
+      });
+    }
+  };
 
   const handleSaveCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -862,6 +916,7 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
 
       {/* TAB 3: CAMPAIGN CONFIG */}
       {activeTab === 'campaign' && (
+        <>
         <section className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs max-w-2xl">
           <h2 className="text-lg font-bold text-slate-900 mb-1">
             Configurazione Ciclo & Frequenza Obiettivi
@@ -959,6 +1014,54 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
             </div>
           </form>
         </section>
+
+        {/* BACKUP & RIPRISTINO */}
+        <section className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs max-w-2xl">
+          <h2 className="text-lg font-bold text-slate-900 mb-1">Backup & Ripristino Dati</h2>
+          <p className="text-xs text-slate-600 mb-5">
+            In modalità locale l'archivio vive solo in questo browser: se pulisci i dati di
+            navigazione o cambi dispositivo, liste e prodotti spariscono. Scarica un backup dopo
+            ogni modifica importante e conservalo fuori dal browser; per recuperare tutto,
+            ripristina qui il file.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleDownloadBackup}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+            >
+              <Download className="w-4 h-4" />
+              <span>Scarica backup (.json)</span>
+            </button>
+            <button
+              onClick={() => backupFileRef.current?.click()}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <Upload className="w-4 h-4 text-sky-600" />
+              <span>Ripristina da file…</span>
+            </button>
+            <input
+              ref={backupFileRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) void handleRestoreBackupFile(file);
+              }}
+            />
+          </div>
+          {backupMsg && (
+            <p
+              className={`mt-4 text-xs font-semibold ${
+                backupMsg.kind === 'ok' ? 'text-emerald-700' : 'text-rose-700'
+              }`}
+            >
+              {backupMsg.text}
+            </p>
+          )}
+        </section>
+        </>
       )}
 
       {/* TAB 4: RECENT ROTATION LOG */}

@@ -10,6 +10,7 @@ import {
   computeAutoColor,
   hydrateDemoSubcategories,
 } from './src/data/seed';
+import { buildBackupPayload, parseBackupPayload } from './src/services/backupCore';
 
 export type TrafficLightColor = 'red' | 'orange' | 'yellow' | 'green';
 
@@ -672,6 +673,27 @@ async function startServer() {
     broadcastUpdate();
 
     return res.json({ success: true, data: store.config });
+  });
+
+  // 8b. Backup download & restore (full archive replacement)
+  app.get('/api/backup', (_req: Request, res: Response) => {
+    return res.json({ data: buildBackupPayload(store, 'server') });
+  });
+
+  app.post('/api/backup', (req: Request, res: Response) => {
+    try {
+      const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      const restored = parseBackupPayload(raw);
+      syncActiveListProducts(restored);
+      store = restored;
+      saveStore(store);
+      broadcastUpdate();
+      return res.json({ data: store });
+    } catch (err) {
+      return res
+        .status(400)
+        .json({ error: err instanceof Error ? err.message : 'Backup non valido.' });
+    }
   });
 
   // 9. Reset to default demo data

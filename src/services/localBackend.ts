@@ -30,6 +30,7 @@ import {
   computeAutoColor,
   hydrateDemoSubcategories,
 } from '../data/seed';
+import { buildBackupPayload, parseBackupPayload } from './backupCore';
 
 const STORAGE_KEY = 'farmacromia.store.v1';
 const CHANNEL_NAME = 'farmacromia-sync';
@@ -588,6 +589,28 @@ export async function updateCampaign(data: Partial<CampaignConfig>): Promise<Cam
 
   commit(store);
   return clone(store.config);
+}
+
+/* ------------------------------------------------------------------ */
+/* Backup e ripristino                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Serializza l'archivio di questo browser in un file di backup. */
+export async function exportBackup(): Promise<string> {
+  return buildBackupPayload(loadStore(), 'local');
+}
+
+/**
+ * Sostituisce l'archivio di questo browser con quello contenuto nel backup.
+ * Riapplica le migrazioni dello schema (sottocategorie ecc.) e notifica le
+ * altre schede aperte, come qualsiasi altra scrittura.
+ */
+export async function restoreBackup(raw: string): Promise<PharmacyStore> {
+  const store = parseBackupPayload(raw);
+  migrateSubcategories(store);
+  syncActiveListProducts(store);
+  commit(store);
+  return clone(store);
 }
 
 export async function resetDemoData(): Promise<boolean> {
