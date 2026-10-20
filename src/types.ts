@@ -73,6 +73,8 @@ export interface PharmacyStore {
   config: CampaignConfig;
   products: ProductItem[];
   historyLog: HistoryLogEntry[];
+  /** Hash del PIN del pannello Titolare (null = nessuna protezione). */
+  managerPinHash?: string | null;
 }
 
 export interface ColorMeta {

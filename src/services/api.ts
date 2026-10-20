@@ -21,6 +21,7 @@
 import type { CampaignConfig, CustomList, PharmacyStore, ProductItem, Subcategory, TrafficLightColor } from '../types';
 import * as local from './localBackend';
 import * as remote from './remoteBackend';
+import { hashPin } from './pin';
 
 export type BackendMode = 'server' | 'local';
 
@@ -215,6 +216,30 @@ export async function exportBackup(): Promise<string> {
 /** Sostituisce l'archivio corrente con quello contenuto nel file di backup. */
 export async function restoreBackup(payload: string): Promise<PharmacyStore> {
   return (await useLocal()) ? local.restoreBackup(payload) : remote.restoreBackup(payload);
+}
+
+/* ------------------------------------------------------------------ */
+/* PIN del pannello Titolare                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Imposta il PIN del pannello Titolare (`pin` = 4-8 cifre) oppure lo rimuove
+ * (`pin` = null). Nel deposito finisce solo l'hash, mai il PIN in chiaro.
+ */
+export async function setManagerPin(pin: string | null): Promise<void> {
+  const hash = pin === null ? null : await hashPin(pin);
+  if (await useLocal()) {
+    await local.setManagerPinHash(hash);
+    return;
+  }
+  const res = await fetch('/api/security/pin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hash }),
+  });
+  if (!res.ok) {
+    throw new Error('Errore durante il salvataggio del PIN.');
+  }
 }
 
 /* ------------------------------------------------------------------ */

@@ -11,7 +11,7 @@ import { PharmacyStore, ProductItem, CampaignConfig, CustomList, TrafficLightCol
 import { parseBackupPayload } from './backupCore';
 
 export async function fetchPharmacyState(): Promise<PharmacyStore> {
-  const res = await fetch('/api/state');
+  const res = await fetch('/api/state', { cache: 'no-store' });
   if (!res.ok) {
     throw new Error(`Errore caricamento stato: ${res.statusText}`);
   }

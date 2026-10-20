@@ -139,6 +139,7 @@ function loadStore(): PharmacyStore {
     store = buildInitialStore();
   }
   migrateSubcategories(store);
+  if (store.managerPinHash === undefined) store.managerPinHash = null;
   syncActiveListProducts(store);
   writeRaw(store);
   return store;
@@ -598,6 +599,13 @@ export async function updateCampaign(data: Partial<CampaignConfig>): Promise<Cam
 /** Serializza l'archivio di questo browser in un file di backup. */
 export async function exportBackup(): Promise<string> {
   return buildBackupPayload(loadStore(), 'local');
+}
+
+/** Imposta (o rimuove, con `null`) l'hash del PIN del pannello Titolare. */
+export async function setManagerPinHash(hash: string | null): Promise<void> {
+  const store = loadStore();
+  store.managerPinHash = hash;
+  commit(store);
 }
 
 /**

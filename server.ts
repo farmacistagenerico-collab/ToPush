@@ -79,6 +79,8 @@ export interface PharmacyStore {
   config: CampaignConfig;
   products: ProductItem[];
   historyLog: HistoryLogEntry[];
+  /** Hash del PIN del pannello Titolare (null = nessuna protezione). */
+  managerPinHash?: string | null;
 }
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -140,6 +142,8 @@ function ensureDataFile(): PharmacyStore {
       }
     }
 
+    if (parsed.managerPinHash === undefined) parsed.managerPinHash = null;
+
     return parsed;
   } catch (err) {
     console.error('Error reading store file, falling back to initial data:', err);
@@ -195,6 +199,15 @@ function broadcastUpdate() {
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+  // Le risposte API non devono mai essere cachiate dal browser:
+  // senza validatori, Chrome può applicare cache euristica su GET /api/state
+  // e mostrare giacenze stale al banco dopo un consiglio registrato.
+  app.use('/api', (_req: Request, res: Response, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    next();
+  });
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -675,7 +688,19 @@ async function startServer() {
     return res.json({ success: true, data: store.config });
   });
 
-  // 8b. Backup download & restore (full archive replacement)
+  // 8b. PIN del pannello Titolare (solo hash, mai il PIN in chiaro)
+  app.post('/api/security/pin', (req: Request, res: Response) => {
+    const hash = (req.body || {}).hash;
+    if (hash !== null && typeof hash !== 'string') {
+      return res.status(400).json({ error: 'Hash PIN non valido.' });
+    }
+    store.managerPinHash = hash;
+    saveStore(store);
+    broadcastUpdate();
+    return res.json({ success: true });
+  });
+
+  // 8c. Backup download & restore (full archive replacement)
   app.get('/api/backup', (_req: Request, res: Response) => {
     return res.json({ data: buildBackupPayload(store, 'server') });
   });

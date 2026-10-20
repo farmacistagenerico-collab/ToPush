@@ -387,5 +387,6 @@ export function buildInitialStore(): PharmacyStore {
     },
     products: active.products,
     historyLog: [],
+    managerPinHash: null,
   };
 }

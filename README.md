@@ -34,6 +34,8 @@ Nella farmacia moderna, il banco vendita si evolve sempre più da semplice dispe
   - Selettore rapido: un click attiva la lista per tutti i terminali della farmacia.
 - ️ **Sottocategorie / Aree di Consiglio**: ogni lista ha le proprie aree (es. `Tosse & Gola`, `Difese Immunitarie`). Al banco compaiono come pulsanti-filtro E come titoli di gruppo; il titolare le crea, rinomina ed elimina in un tocco e assegna i prodotti con una tendina (o via CSV).
 - 💾 **Backup & Ripristino**: un pulsante scarica l'intero archivio (liste, aree di consiglio, prodotti, log) in un file `.json` datato; un altro lo ripristina con validazione e messaggi chiari. Funziona sia in modalità locale sia con il backend Express (pannello Titolare → «Configura Ciclo & Frequenza»).
+- 🔐 **PIN del Pannello Titolare**: protezione anti-distrazione a 4-8 cifre; nel deposito vive solo l'hash (SHA-256 dove disponibile). Lo sblocco dura per la scheda del browser.
+- 📱 **App installabile e offline (PWA)**: manifest + service worker; al banco l'app si apre anche senza rete e si installa in home screen. Interfaccia responsive verificata dai 320 px in su.
 - 📲 **Sincronizzazione Real-Time (Mobile & Desktop)**: Architettura con **Server-Sent Events (SSE)**. Se un farmacista registra un consiglio da smartphone in tasca al camice, tutti i computer del banco si aggiornano in tempo reale.
 - 📥 **Importatore Massivo CSV**: Incolla direttamente righe da Excel o gestionali di farmacia (Farmadati, Wingesfar, CSFarma) con anteprima automatica.
 - 🛡️ **Pannello Titolare Riservato**: Solo chi gestisce la farmacia può visualizzare le quantità interne, le scadenze e forzare i colori con un clic.

@@ -28,7 +28,10 @@ import {
   deleteSubcategory,
   exportBackup,
   restoreBackup,
+  setManagerPin,
 } from './services/api';
+import { isSessionUnlocked, setSessionUnlocked } from './services/pin';
+import { PinModal } from './components/PinModal';
 import { TopNav } from './components/TopNav';
 import { ListSelectorBar } from './components/ListSelectorBar';
 import { CreateListModal } from './components/CreateListModal';
@@ -41,6 +44,8 @@ import { Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 export default function App() {
   const [store, setStore] = useState<PharmacyStore | null>(null);
   const [activeView, setActiveView] = useState<'counter' | 'manager'>('counter');
+  const [managerUnlocked, setManagerUnlocked] = useState<boolean>(() => isSessionUnlocked());
+  const [pinModalOpen, setPinModalOpen] = useState(false);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [backendMode, setBackendMode] = useState<BackendMode | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -335,12 +340,31 @@ export default function App() {
 
   const activeList = store.lists.find((l) => l.id === store.activeListId) || store.lists[0];
 
+  /** Il pannello Titolare può essere protetto da PIN: intercetta l'accesso. */
+  const handleSelectView = (view: 'counter' | 'manager') => {
+    if (view === 'manager' && store.managerPinHash && !managerUnlocked) {
+      setPinModalOpen(true);
+      return;
+    }
+    setActiveView(view);
+  };
+
+  const handleSetManagerPin = async (pin: string | null) => {
+    await setManagerPin(pin);
+  };
+
+  const handleLockPanel = () => {
+    setSessionUnlocked(false);
+    setManagerUnlocked(false);
+    setActiveView('counter');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Top Bar Navigation */}
       <TopNav
         activeView={activeView}
-        onSelectView={setActiveView}
+        onSelectView={handleSelectView}
         onOpenCrossSelling={() => setIsCrossSellingOpen(true)}
         onOpenMethodExplainer={() => setIsMethodExplainerOpen(true)}
         isRealtimeConnected={isRealtimeConnected}
@@ -412,6 +436,9 @@ export default function App() {
             onResetBlank={handleResetBlank}
             onExportBackup={handleExportBackup}
             onRestoreBackup={handleRestoreBackup}
+            managerPinSet={Boolean(store.managerPinHash)}
+            onSetManagerPin={handleSetManagerPin}
+            onLockPanel={handleLockPanel}
             onActivateList={handleActivateList}
             onRenameList={handleRenameList}
             onDuplicateList={handleDuplicateList}
@@ -426,6 +453,18 @@ export default function App() {
         isOpen={isCreateListOpen}
         onClose={() => setIsCreateListOpen(false)}
         onCreateList={handleCreateList}
+      />
+
+      <PinModal
+        isOpen={pinModalOpen}
+        expectedHash={store.managerPinHash ?? null}
+        onClose={() => setPinModalOpen(false)}
+        onUnlocked={() => {
+          setSessionUnlocked(true);
+          setManagerUnlocked(true);
+          setPinModalOpen(false);
+          setActiveView('manager');
+        }}
       />
 
       <CrossSellingGuideModal

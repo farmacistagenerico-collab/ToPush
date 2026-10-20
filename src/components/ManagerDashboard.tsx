@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { isPinFormatValid } from '../services/pin';
 import { ProductItem, CampaignConfig, CustomList, Subcategory, TrafficLightColor, COLOR_METAS, HistoryLogEntry } from '../types';
 import {
   Plus,
@@ -19,6 +20,8 @@ import {
   CheckCircle2,
   FolderPlus,
   Tags,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 
 interface ManagerDashboardProps {
@@ -40,6 +43,9 @@ interface ManagerDashboardProps {
   onResetBlank: () => Promise<void>;
   onExportBackup: () => Promise<string>;
   onRestoreBackup: (raw: string) => Promise<{ lists: number; products: number }>;
+  managerPinSet: boolean;
+  onSetManagerPin: (pin: string | null) => Promise<void>;
+  onLockPanel: () => void;
   onActivateList: (id: string) => Promise<void>;
   onRenameList: (id: string, newName: string) => Promise<void>;
   onDuplicateList: (id: string) => Promise<void>;
@@ -66,6 +72,9 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
   onResetBlank,
   onExportBackup,
   onRestoreBackup,
+  managerPinSet,
+  onSetManagerPin,
+  onLockPanel,
   onActivateList,
   onRenameList,
   onDuplicateList,
@@ -113,6 +122,44 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
   const [campaignSaved, setCampaignSaved] = useState(false);
   const [backupMsg, setBackupMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const backupFileRef = useRef<HTMLInputElement>(null);
+  const [pinA, setPinA] = useState('');
+  const [pinB, setPinB] = useState('');
+  const [pinMsg, setPinMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const validatePinPair = (): string | null => {
+    if (!isPinFormatValid(pinA)) return 'Il PIN deve essere composto da 4-8 cifre numeriche.';
+    if (pinA !== pinB) return 'I due PIN inseriti non coincidono.';
+    return null;
+  };
+
+  const handleActivatePin = async () => {
+    const err = validatePinPair();
+    if (err) return setPinMsg({ kind: 'err', text: err });
+    await onSetManagerPin(pinA);
+    setPinA('');
+    setPinB('');
+    setPinMsg({
+      kind: 'ok',
+      text: 'PIN attivato: da ora l’Area Titolare lo chiede a ogni nuova scheda del browser.',
+    });
+  };
+
+  const handleChangePin = async () => {
+    const err = validatePinPair();
+    if (err) return setPinMsg({ kind: 'err', text: err });
+    await onSetManagerPin(pinA);
+    setPinA('');
+    setPinB('');
+    setPinMsg({ kind: 'ok', text: 'PIN aggiornato.' });
+  };
+
+  const handleRemovePin = async () => {
+    if (!confirm('Rimuovere il PIN? Il pannello Titolare tornerà accessibile senza codice.')) return;
+    await onSetManagerPin(null);
+    setPinA('');
+    setPinB('');
+    setPinMsg({ kind: 'ok', text: 'PIN rimosso: pannello Titolare di nuovo aperto.' });
+  };
 
   const handleDownloadBackup = async () => {
     try {
@@ -309,7 +356,7 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               onClick={onOpenCreateListModal}
               className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
@@ -1058,6 +1105,102 @@ Vitamina C 1000 Masticabile; BioHealth; Difese & Vitamine; Prevenzione invernale
               }`}
             >
               {backupMsg.text}
+            </p>
+          )}
+        </section>
+
+        {/* SICUREZZA: PIN PANNELLO TITOLARE */}
+        <section className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs max-w-2xl">
+          <h2 className="text-lg font-bold text-slate-900 mb-1">Sicurezza: PIN del Pannello Titolare</h2>
+          <p className="text-xs text-slate-600 mb-5">
+            Protezione anti-distrazione per il banco: con il PIN attivo, l'Area Titolare chiede il
+            codice a ogni nuova scheda del browser. Nel deposito viene salvato solo l'hash del PIN,
+            mai il codice in chiaro.
+          </p>
+
+          {managerPinSet ? (
+            <div className="space-y-4">
+              <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" /> PIN attivo
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  value={pinA}
+                  onChange={(e) => setPinA(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Nuovo PIN (4-8 cifre)"
+                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  value={pinB}
+                  onChange={(e) => setPinB(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Conferma nuovo PIN"
+                  className="px-3 py-2 rounded-lg border border-slate-300 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <button
+                  onClick={handleChangePin}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-xs"
+                >
+                  Cambia PIN
+                </button>
+                <button
+                  onClick={handleRemovePin}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                >
+                  <Unlock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Rimuovi PIN</span>
+                </button>
+                <button
+                  onClick={onLockPanel}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-700 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
+                >
+                  <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Blocca il pannello adesso</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                value={pinA}
+                onChange={(e) => setPinA(e.target.value.replace(/\D/g, ''))}
+                placeholder="Nuovo PIN (4-8 cifre)"
+                className="px-3 py-2 rounded-lg border border-slate-300 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                value={pinB}
+                onChange={(e) => setPinB(e.target.value.replace(/\D/g, ''))}
+                placeholder="Conferma PIN"
+                className="px-3 py-2 rounded-lg border border-slate-300 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <button
+                onClick={handleActivatePin}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+              >
+                <Lock className="w-4 h-4" />
+                <span>Attiva PIN</span>
+              </button>
+            </div>
+          )}
+
+          {pinMsg && (
+            <p
+              className={`mt-4 text-xs font-semibold ${
+                pinMsg.kind === 'ok' ? 'text-emerald-700' : 'text-rose-700'
+              }`}
+            >
+              {pinMsg.text}
             </p>
           )}
         </section>

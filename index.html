@@ -8,6 +8,13 @@
          Senza questo link il browser richiede /favicon.ico alla root del dominio -> 404. -->
     <link rel="icon" type="image/svg+xml" href="./assets/favicon-DCT7-UMH.svg" />
     <meta name="theme-color" content="#059669" />
+    <!-- PWA: installabile e usabile offline al banco -->
+    <link rel="manifest" href="./assets/manifest-DeLDofca.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="FarmaCromia" />
+    <link rel="apple-touch-icon" href="./assets/icon-192-DLIyk9A_.png" />
     <meta name="description" content="Sistema di consiglio e gestione giacenze a semaforo cromatico per farmacie. Semplifica il cross-selling e gli obiettivi del banco senza pressione numerica per i collaboratori." />
     <meta property="og:title" content="FarmaCromia" />
     <meta property="og:description" content="Sistema di consiglio e gestione giacenze a semaforo cromatico per farmacie. Semplifica il cross-selling e gli obiettivi del banco senza pressione numerica per i collaboratori." />
@@ -16,11 +23,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="./assets/index.src-D_BLDB0s.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-GCiOlGnO.css">
+    <script type="module" crossorigin src="./assets/index.src-DLZxuKJU.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Bay0abih.css">
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // PWA: registra il service worker (offline + installabilità).
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker
+            .register('./sw.js')
+            .catch(function (err) {
+              console.warn('[FarmaCromia] Service worker non registrato:', err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
 
